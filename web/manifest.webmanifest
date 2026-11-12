@@ -1,0 +1,14 @@
+{
+  "name": "Little Monitor — Caregiver Preview",
+  "short_name": "Little Monitor",
+  "description": "Caregiver dashboard preview for the Smart Baby Monitoring System classroom prototype",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "background_color": "#202548",
+  "theme_color": "#11152b",
+  "icons": [
+    { "src": "/icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any maskable" },
+    { "src": "/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any maskable" }
+  ]
+}
