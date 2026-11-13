@@ -86,3 +86,9 @@ Latest measured build: 73,364 B of 131,072 B main SRAM (plus the 64 KiB CCM audi
 3. Display/buttons/buzzer and local acknowledge/mute.
 4. Speech/music/silence confusers and a larger independent test set.
 5. Demonstration video, final report formatting, and tagged submission. Do not tag until item 1 is recorded.
+
+## 9. Conclusion
+
+The prototype now demonstrates the complete local service path: STM32Cube/FreeRTOS firmware reads the onboard sensors and microphone, RW007 joins Wi-Fi and obtains DHCP, mbedTLS verifies a pinned CA and negotiates TLS 1.2 AES-GCM, Caddy terminates HTTPS, FastAPI stores readings/events and runs YAMNet, and the Android app shows live state, history, acknowledgement, and local cry notifications. The classifier has a reproducible held-out evaluation, and the firmware upload, outage queue, and Android build have direct evidence.
+
+The submission is not complete as a capture-to-notification claim: the automated workstation has not produced a controlled acoustic cry window that the classifier accepts, so the ten microphone-to-app trials, FCM delivery, and demonstration video remain human-in-the-loop work. The prototype is educational and is not a medical or safety-certified monitor.
