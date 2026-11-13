@@ -33,6 +33,9 @@ int main(void)
 
     sample.temperature_valid = false;
     sample.humidity_valid = false;
+    assert(monitor_alert_update(&state, &config, &sample) == MONITOR_ALERT_SENSOR_FAULT);
+    sample.temperature_valid = true;
+    sample.humidity_valid = true;
     sample.inference_valid = false;
     assert(monitor_alert_update(&state, &config, &sample) == MONITOR_ALERT_INFERENCE_UNAVAILABLE);
     sample.sensor_fault = true;
@@ -40,6 +43,18 @@ int main(void)
     sample.sensor_fault = false;
     sample.network_fault = true;
     assert(monitor_alert_update(&state, &config, &sample) == MONITOR_ALERT_NETWORK_FAULT);
+
+    sample.network_fault = false;
+    sample.inference_valid = true;
+    sample.cry_score = NAN;
+    assert(monitor_alert_update(&state, &config, &sample) == MONITOR_ALERT_INFERENCE_UNAVAILABLE);
+    sample.cry_score = 0.8f;
+    assert(monitor_alert_update(&state, &config, &sample) == MONITOR_ALERT_NONE);
+    sample.inference_valid = false;
+    assert(monitor_alert_update(&state, &config, &sample) == MONITOR_ALERT_INFERENCE_UNAVAILABLE);
+    sample.inference_valid = true;
+    assert(monitor_alert_update(&state, &config, &sample) == MONITOR_ALERT_NONE);
+    assert(monitor_alert_update(&state, &config, &sample) == MONITOR_ALERT_CRY);
 
     puts("PASS: environment debounce/hysteresis, cry confirmation, explicit unavailable/fault states");
     return 0;

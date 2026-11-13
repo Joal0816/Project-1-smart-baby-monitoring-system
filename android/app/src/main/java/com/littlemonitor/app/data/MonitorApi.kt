@@ -1,5 +1,6 @@
 package com.littlemonitor.app.data
 
+import com.littlemonitor.app.BuildConfig
 import org.json.JSONObject
 import java.net.HttpURLConnection
 import java.net.URL
@@ -11,6 +12,9 @@ data class RoomReading(
     val light: Double?,
     val receivedAt: String?,
     val faults: List<String>,
+    val capturedAt: String? = null,
+    val proximity: String? = null,
+    val tilt: Double? = null,
 )
 
 data class MonitorEvent(
@@ -20,37 +24,45 @@ data class MonitorEvent(
     val createdAt: String,
     val acknowledged: Boolean,
     val confidence: Double?,
+    val resolved: Boolean = false,
+)
+
+data class AlertSettings(
+    val temperatureMin: Double,
+    val temperatureMax: Double,
+    val humidityMin: Double,
+    val humidityMax: Double,
+    val cryThreshold: Double,
+    val confirmFrames: Int,
+    val clearWindows: Int,
+    val staleAfterSeconds: Long,
 )
 
 data class MonitorSnapshot(
     val reading: RoomReading?,
     val events: List<MonitorEvent>,
     val online: Boolean,
+    val readings: List<RoomReading> = emptyList(),
+    val inferenceStatus: String = "unknown",
+    val inferenceCapturedAt: String? = null,
+    val inferenceCheckedAt: String? = null,
+    val alertSettings: AlertSettings? = null,
 )
 
 class MonitorApi(private val config: MonitorConfig) {
     fun load(): MonitorSnapshot {
-        require(config.baseUrl.startsWith("https://", ignoreCase = true)) {
+        require(isAllowedBaseUrl(config.baseUrl)) {
             "Configure the backend URL and HTTPS app token in Settings."
         }
         require(config.appToken.isNotBlank()) { "Add the backend app token in Settings." }
         val latest = get("/api/v1/devices/${path(config.deviceId)}/latest")
         val readingJson = latest.optJSONObject("reading")
         val device = latest.optJSONObject("device")
-        val faults = readingJson?.optString("sensor_faults_json")
-            ?.takeIf { it.isNotBlank() }?.let { runCatching {
-                val array = org.json.JSONArray(it)
-                List(array.length()) { index -> array.getString(index) }
-            }.getOrNull() }.orEmpty()
-        val reading = readingJson?.let {
-            RoomReading(
-                temperature = it.optNullableDouble("temperature_c"),
-                humidity = it.optNullableDouble("humidity_pct"),
-                light = it.optNullableDouble("light_lux"),
-                receivedAt = it.optString("received_at").takeIf(String::isNotBlank),
-                faults = faults,
-            )
-        }
+        val reading = readingJson?.let(::parseReading)
+        val readings = get("/api/v1/readings?device_id=${path(config.deviceId)}&limit=50")
+            .optJSONArray("items")?.let { array ->
+                List(array.length()) { parseReading(array.getJSONObject(it)) }
+            }.orEmpty()
         val events = get("/api/v1/events?device_id=${path(config.deviceId)}&limit=50")
             .optJSONArray("items")
             ?.let { array -> List(array.length()) { index ->
@@ -62,10 +74,28 @@ class MonitorApi(private val config: MonitorConfig) {
                     createdAt = item.optString("created_at"),
                     acknowledged = !item.isNull("acknowledged_at"),
                     confidence = item.optNullableDouble("confidence"),
+                    resolved = !item.isNull("resolved_at"),
                 )
             } }.orEmpty()
         val online = device?.optString("network_status") == "online"
-        return MonitorSnapshot(reading, events, online)
+        val inference = latest.optJSONObject("inference")
+        val settings = latest.optJSONObject("alert_settings")?.let { item ->
+            runCatching {
+                AlertSettings(
+                    item.getDouble("temperature_min_c"), item.getDouble("temperature_max_c"),
+                    item.getDouble("humidity_min_pct"), item.getDouble("humidity_max_pct"),
+                    item.getDouble("cry_score_threshold"), item.getInt("cry_confirm_frames"),
+                    item.getInt("cry_clear_windows"), item.getLong("stale_after_seconds"),
+                )
+            }.getOrNull()
+        }
+        return MonitorSnapshot(
+            reading, events, online, readings,
+            inference?.optString("status", "unknown") ?: "unknown",
+            inference?.optString("captured_at")?.takeUnless { it.isBlank() || it == "null" },
+            inference?.optString("checked_at")?.takeUnless { it.isBlank() || it == "null" },
+            settings,
+        )
     }
 
     fun acknowledge(eventId: String) {
@@ -111,6 +141,25 @@ class MonitorApi(private val config: MonitorConfig) {
     }
 
     private fun path(value: String) = URLEncoder.encode(value, Charsets.UTF_8.name())
+}
+
+private fun isAllowedBaseUrl(url: String): Boolean =
+    url.startsWith("https://", ignoreCase = true) ||
+        (BuildConfig.DEBUG && (url.startsWith("http://10.0.2.2:") ||
+            url.startsWith("http://127.0.0.1:")))
+
+private fun parseReading(item: JSONObject): RoomReading {
+    val faults = runCatching {
+        val array = org.json.JSONArray(item.optString("sensor_faults_json", "[]"))
+        List(array.length()) { array.getString(it) }
+    }.getOrDefault(emptyList())
+    return RoomReading(
+        item.optNullableDouble("temperature_c"), item.optNullableDouble("humidity_pct"),
+        item.optNullableDouble("light_lux"), item.optString("received_at").takeIf(String::isNotBlank),
+        faults, item.optString("captured_at").takeIf(String::isNotBlank),
+        item.optString("proximity_state").takeUnless { it.isBlank() || it == "null" },
+        item.optNullableDouble("tilt_deg"),
+    )
 }
 
 private fun JSONObject.optNullableDouble(key: String): Double? =

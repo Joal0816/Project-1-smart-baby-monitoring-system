@@ -1,5 +1,6 @@
 package com.littlemonitor.app.ui
 
+import com.littlemonitor.app.MonitorNotifications
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
@@ -16,6 +17,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.navigationBars
+import androidx.compose.foundation.layout.safeDrawing
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -81,6 +83,7 @@ import androidx.core.content.ContextCompat
 import com.google.firebase.messaging.FirebaseMessaging
 import com.littlemonitor.app.R
 import com.littlemonitor.app.data.MonitorApi
+import com.littlemonitor.app.data.AlertSettings
 import com.littlemonitor.app.data.MonitorConfig
 import com.littlemonitor.app.data.MonitorEvent
 import com.littlemonitor.app.data.MonitorSnapshot
@@ -117,6 +120,7 @@ private val DemoSnapshot = MonitorSnapshot(
         MonitorEvent("demo-3", "online", "Monitor is online", "1:30 PM", true, null),
     ),
     online = true,
+    alertSettings = AlertSettings(18.0, 30.0, 30.0, 70.0, 0.35, 2, 3, 120),
 )
 
 @Composable
@@ -138,11 +142,26 @@ fun LittleMonitorApp(configStore: SecureConfigStore) {
             return@LaunchedEffect
         }
         val api = MonitorApi(config)
+        val knownEventIds = mutableSetOf<String>()
+        var initializedEvents = false
         while (isActive) {
             val result = runCatching { withContext(Dispatchers.IO) { api.load() } }
-            result.onSuccess {
-                snapshot = it
+            result.onSuccess { loaded ->
+                snapshot = loaded
                 remoteError = null
+                val newEvents = loaded.events.filter { it.id !in knownEventIds }
+                knownEventIds += loaded.events.map { it.id }
+                val permissionGranted = Build.VERSION.SDK_INT < 33 ||
+                    context.checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS) ==
+                    PackageManager.PERMISSION_GRANTED
+                val enabled = context.getSharedPreferences("monitor_preferences", 0)
+                    .getBoolean("notifications_enabled", true)
+                if (initializedEvents && permissionGranted && enabled) {
+                    newEvents.filter { it.kind == "cry" && !it.acknowledged }.forEach { event ->
+                        MonitorNotifications.showCry(context, event.id, event.summary, event.confidence)
+                    }
+                }
+                initializedEvents = true
             }.onFailure {
                 remoteError = it.message ?: "Could not reach the monitor service."
             }
@@ -171,7 +190,7 @@ fun LittleMonitorApp(configStore: SecureConfigStore) {
         Scaffold(
             modifier = Modifier.fillMaxSize(),
             containerColor = palette.paper,
-            contentWindowInsets = WindowInsets.navigationBars,
+            contentWindowInsets = WindowInsets.safeDrawing,
             snackbarHost = { SnackbarHost(snackbars) },
             bottomBar = {
                 NavigationBar(containerColor = palette.card, tonalElevation = 0.dp) {
@@ -207,6 +226,7 @@ fun LittleMonitorApp(configStore: SecureConfigStore) {
                 )
                 Destination.History -> HistoryScreen(
                     events = snapshot.events,
+                    readings = snapshot.readings,
                     demoMode = demoMode,
                     padding = padding,
                     onAcknowledge = { event ->
@@ -231,6 +251,8 @@ fun LittleMonitorApp(configStore: SecureConfigStore) {
                 )
                 Destination.Settings -> SettingsScreen(
                     initial = config,
+                    alertSettings = snapshot.alertSettings,
+                    demoMode = demoMode,
                     padding = padding,
                     onSave = { updated ->
                         runCatching {
@@ -258,18 +280,39 @@ private fun OverviewScreen(
 ) {
     val palette = LocalMonitorPalette.current
     val reading = snapshot.reading
-    val lastUpdateAge = secondsSince(reading?.receivedAt)
+    var now by remember { mutableStateOf(Instant.now()) }
+    LaunchedEffect(Unit) {
+        while (isActive) {
+            delay(1_000)
+            now = Instant.now()
+        }
+    }
+    val staleAfter = snapshot.alertSettings?.staleAfterSeconds ?: READING_STALE_AFTER_SECONDS
+    val lastUpdateAge = secondsSince(reading?.receivedAt, now)
+    val captureAge = secondsSince(reading?.capturedAt, now)
     val readingStale = !demoMode && (
-        reading == null || lastUpdateAge == null || lastUpdateAge > READING_STALE_AFTER_SECONDS
+        reading == null || lastUpdateAge == null || captureAge == null ||
+            lastUpdateAge > staleAfter || captureAge > staleAfter
     )
-    val hasCry = cryAlert || snapshot.events.any { it.kind == "cry" && !it.acknowledged }
-    val needsAttention = remoteError != null || !snapshot.online || readingStale
+    val inferenceFresh = secondsSince(snapshot.inferenceCapturedAt, now)?.let { it <= staleAfter } == true &&
+        secondsSince(snapshot.inferenceCheckedAt, now)?.let { it <= staleAfter } == true
+    val inferenceState = when {
+        demoMode -> "sample"
+        snapshot.inferenceStatus in listOf("crying", "background") && !inferenceFresh -> "stale"
+        else -> snapshot.inferenceStatus
+    }
+    val inferenceFault = !demoMode && inferenceState !in listOf("crying", "background")
+    val hasCry = cryAlert || (!demoMode && inferenceState == "crying") ||
+        snapshot.events.any { it.kind == "cry" && !it.acknowledged && !it.resolved }
+    val deviceFaults = reading?.faults?.filter(String::isNotBlank).orEmpty()
+    val needsAttention = remoteError != null || !snapshot.online || readingStale || inferenceFault || deviceFaults.isNotEmpty()
     val connectionLabel = when {
         demoMode -> "Demo data"
         remoteError != null -> "Update failed"
         !snapshot.online -> "Offline"
         reading == null -> "No readings"
         readingStale -> "Stale data"
+        inferenceFault || deviceFaults.isNotEmpty() -> "Needs attention"
         else -> "Connected"
     }
     val heroStatus = when {
@@ -278,6 +321,8 @@ private fun OverviewScreen(
         !snapshot.online -> "MONITOR OFFLINE"
         reading == null -> "WAITING FOR FIRST READING"
         readingStale -> "DATA STALE"
+        deviceFaults.isNotEmpty() -> "DEVICE NEEDS ATTENTION"
+        inferenceFault -> "CRY DETECTION NEEDS ATTENTION"
         demoMode -> "PREVIEW ACTIVE"
         else -> "MONITOR CONNECTED"
     }
@@ -287,6 +332,8 @@ private fun OverviewScreen(
         !snapshot.online -> "Monitor offline"
         reading == null -> "Waiting for first reading"
         readingStale -> "Readings may be out of date"
+        deviceFaults.isNotEmpty() -> "A device sensor needs attention"
+        inferenceFault -> "Cry detection is not current"
         demoMode -> "No simulated alert"
         else -> "No active alert"
     }
@@ -296,11 +343,12 @@ private fun OverviewScreen(
         remoteError != null -> remoteError
         !snapshot.online -> "Reconnect the monitor to receive current readings."
         reading == null -> "No readings have arrived from this device yet."
-        readingStale -> "The last update was ${relativeAge(reading?.receivedAt)}. Check the monitor connection."
+        readingStale -> "The last update was ${relativeAge(reading.receivedAt)}. Check the monitor connection."
+        deviceFaults.isNotEmpty() -> deviceFaults.joinToString()
+        inferenceFault -> "Room readings are available, but there is no current cry classification. Check the microphone and detection service."
         demoMode -> "Sample room readings are shown below. No audio is recorded."
-        else -> "No likely crying event detected. Current readings are shown below."
+        else -> "The latest audio window was classified as background sound. Continue normal adult supervision."
     }
-    val deviceFaults = reading?.faults?.filter(String::isNotBlank).orEmpty()
     val deviceStatus = when {
         remoteError != null -> "Update failed"
         !snapshot.online -> "Offline"
@@ -314,7 +362,7 @@ private fun OverviewScreen(
         remoteError != null -> "Latest update failed"
         !snapshot.online -> "Connection unavailable"
         reading == null -> "No device reading"
-        readingStale -> "Last update ${relativeAge(reading?.receivedAt)}"
+        readingStale -> "Last update ${relativeAge(reading.receivedAt)}"
         demoMode -> "Sample status only"
         else -> "No reported device faults"
     }
@@ -325,21 +373,25 @@ private fun OverviewScreen(
         verticalArrangement = Arrangement.spacedBy(16.dp),
     ) {
         item {
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Image(
-                    painter = painterResource(R.drawable.ic_little_monitor_logo),
-                    contentDescription = null,
-                    modifier = Modifier.size(40.dp),
-                )
-                Column(Modifier.padding(start = 10.dp).weight(1f)) {
-                    Text("little monitor", fontWeight = FontWeight.Bold, fontSize = 17.sp, color = palette.ink)
-                    Text("Nursery monitor", fontSize = 12.sp, color = palette.muted)
+            Column {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Image(
+                        painter = painterResource(R.drawable.ic_little_monitor_logo),
+                        contentDescription = null,
+                        modifier = Modifier.size(40.dp),
+                    )
+                    Column(Modifier.padding(start = 10.dp).weight(1f)) {
+                        Text("little monitor", fontWeight = FontWeight.Bold, fontSize = 17.sp, color = palette.ink)
+                        Text("Nursery monitor", fontSize = 12.sp, color = palette.muted)
+                    }
                 }
-                StatusPill(connectionLabel, when (connectionLabel) {
-                    "Connected" -> palette.mintWash
-                    "Demo data" -> palette.gold
-                    else -> palette.peach
-                })
+                Box(Modifier.padding(top = 8.dp)) {
+                    StatusPill(connectionLabel, when (connectionLabel) {
+                        "Connected" -> palette.mintWash
+                        "Demo data" -> palette.gold
+                        else -> palette.peach
+                    })
+                }
             }
         }
         item {
@@ -380,6 +432,23 @@ private fun OverviewScreen(
             }
         }
         item {
+            Card(shape = RoundedCornerShape(20.dp), colors = CardDefaults.cardColors(
+                containerColor = if (inferenceFault) palette.peach else palette.card,
+            )) {
+                Column(Modifier.fillMaxWidth().padding(16.dp)) {
+                    Text("Cry detection", fontWeight = FontWeight.Bold, color = palette.ink)
+                    Text(when (inferenceState) {
+                        "sample" -> "Sample mode · no microphone connected"
+                        "crying" -> "Likely crying · event remains active until confirmed background audio"
+                        "background" -> "Background sound in the last classified window"
+                        "stale" -> "Audio result is out of date"
+                        "unavailable" -> "Detection service unavailable"
+                        else -> "Waiting for the first audio result"
+                    }, color = palette.muted, modifier = Modifier.padding(top = 6.dp))
+                }
+            }
+        }
+        item {
             Row(verticalAlignment = Alignment.Bottom) {
                 Column(Modifier.weight(1f)) {
                     Text("Room readings", fontSize = 22.sp, fontWeight = FontWeight.Bold, color = palette.ink)
@@ -402,13 +471,19 @@ private fun OverviewScreen(
             Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
                 Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                     ReadingCard(Modifier.weight(1f), AppIcon.Thermometer, "Temperature",
-                        reading?.temperature?.let { "%.1f".format(it) } ?: "—", "°C", "Sample band · 18–30 °C",
+                        reading?.temperature?.let { "%.1f".format(it) } ?: "—", "°C",
+                        snapshot.alertSettings?.let { "Demo band · ${it.temperatureMin}–${it.temperatureMax} °C" } ?: "Alert band unavailable",
                         palette.peach, palette,
-                        reading?.temperature?.let { if (it in 18.0..30.0) "In range" else "Check range" } ?: "Unavailable")
+                        reading?.temperature?.let { value -> snapshot.alertSettings?.let {
+                            if (value in it.temperatureMin..it.temperatureMax) "In range" else "Check range"
+                        } } ?: "Unavailable")
                     ReadingCard(Modifier.weight(1f), AppIcon.Droplet, "Humidity",
-                        reading?.humidity?.let { "%.0f".format(it) } ?: "—", "%", "Sample band · 30–70%",
+                        reading?.humidity?.let { "%.0f".format(it) } ?: "—", "%",
+                        snapshot.alertSettings?.let { "Demo band · ${it.humidityMin}–${it.humidityMax}%" } ?: "Alert band unavailable",
                         palette.mintWash, palette,
-                        reading?.humidity?.let { if (it in 30.0..70.0) "In range" else "Check range" } ?: "Unavailable")
+                        reading?.humidity?.let { value -> snapshot.alertSettings?.let {
+                            if (value in it.humidityMin..it.humidityMax) "In range" else "Check range"
+                        } } ?: "Unavailable")
                 }
                 Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                     ReadingCard(Modifier.weight(1f), AppIcon.Sun, "Ambient light",
@@ -481,6 +556,7 @@ private fun OverviewScreen(
 @Composable
 private fun HistoryScreen(
     events: List<MonitorEvent>,
+    readings: List<RoomReading>,
     demoMode: Boolean,
     padding: PaddingValues,
     onAcknowledge: (MonitorEvent) -> Unit,
@@ -543,11 +619,30 @@ private fun HistoryScreen(
                 }
             }
         }
+        item {
+            Text("Recent sensor readings", fontSize = 22.sp, fontWeight = FontWeight.Bold, color = palette.ink)
+            if (readings.isEmpty()) {
+                Text(if (demoMode) "No device readings in sample mode." else "No stored readings yet.", color = palette.muted)
+            }
+        }
+        items(readings.size) { index ->
+            val reading = readings[index]
+            Card(shape = RoundedCornerShape(18.dp), colors = CardDefaults.cardColors(containerColor = palette.card)) {
+                Column(Modifier.fillMaxWidth().padding(16.dp), verticalArrangement = Arrangement.spacedBy(5.dp)) {
+                    Text(reading.capturedAt?.let(::displayDateTime) ?: "Capture time unavailable", fontWeight = FontWeight.SemiBold, color = palette.ink)
+                    Text("Temperature: ${reading.temperature ?: "—"} °C · Humidity: ${reading.humidity ?: "—"}%", color = palette.muted)
+                    Text("Light: ${reading.light ?: "—"} lux", color = palette.muted)
+                    Text("Placement: ${reading.proximity ?: "unavailable"} · Device tilt: ${reading.tilt ?: "—"}°", color = palette.muted)
+                    if (reading.faults.isNotEmpty()) Text("Faults: ${reading.faults.joinToString()}", color = palette.alert)
+                }
+            }
+        }
     }
 }
 
 @Composable
-private fun SettingsScreen(initial: MonitorConfig, padding: PaddingValues, onSave: (MonitorConfig) -> Boolean) {
+private fun SettingsScreen(initial: MonitorConfig, alertSettings: AlertSettings?, demoMode: Boolean,
+                           padding: PaddingValues, onSave: (MonitorConfig) -> Boolean) {
     val palette = LocalMonitorPalette.current
     val context = LocalContext.current
     var baseUrl by remember(initial) { mutableStateOf(initial.baseUrl) }
@@ -581,6 +676,23 @@ private fun SettingsScreen(initial: MonitorConfig, padding: PaddingValues, onSav
             Text("Settings", fontSize = 30.sp, fontWeight = FontWeight.Bold, color = palette.ink)
             Text("Set the backend connection and notification preference.", color = palette.muted, fontSize = 14.sp,
                 modifier = Modifier.padding(top = 4.dp))
+        }
+        item {
+            Card(shape = RoundedCornerShape(20.dp), colors = CardDefaults.cardColors(containerColor = palette.card)) {
+                Column(Modifier.fillMaxWidth().padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Text(if (demoMode) "Sample alert rules" else "Monitor alert rules", fontWeight = FontWeight.SemiBold, color = palette.ink)
+                    if (alertSettings == null) {
+                        Text("Connect to the monitor service to view configured rules.", color = palette.muted)
+                    } else {
+                        Text("Temperature: ${alertSettings.temperatureMin}–${alertSettings.temperatureMax} °C", color = palette.muted)
+                        Text("Humidity: ${alertSettings.humidityMin}–${alertSettings.humidityMax}%", color = palette.muted)
+                        Text("Cry score threshold: ${alertSettings.cryThreshold}", color = palette.muted)
+                        Text("Cry confirmation: ${alertSettings.confirmFrames} adjacent model frames. A new alert can begin after ${alertSettings.clearWindows} background windows.", color = palette.muted)
+                        Text("Data becomes stale after ${alertSettings.staleAfterSeconds} seconds.", color = palette.muted)
+                    }
+                    Text("These are demonstration thresholds, not safety guidance. Local buzzer and button controls require board verification.", color = palette.muted)
+                }
+            }
         }
         item {
             Card(shape = RoundedCornerShape(20.dp), colors = CardDefaults.cardColors(containerColor = palette.card)) {
@@ -857,8 +969,8 @@ private fun DrawScope.drawStar(center: Offset, radius: Float, color: Color) {
     drawLine(color, Offset(center.x - radius, center.y), Offset(center.x + radius, center.y), 1.3.dp.toPx())
 }
 
-private fun secondsSince(raw: String?): Long? = raw?.let { value ->
-    runCatching { Duration.between(OffsetDateTime.parse(value).toInstant(), Instant.now()).seconds.coerceAtLeast(0) }.getOrNull()
+private fun secondsSince(raw: String?, now: Instant = Instant.now()): Long? = raw?.let { value ->
+    runCatching { Duration.between(OffsetDateTime.parse(value).toInstant(), now).seconds.takeIf { it >= 0 } }.getOrNull()
 }
 
 private fun relativeAge(raw: String?): String {

@@ -1,4 +1,4 @@
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 import json
 
 from fastapi.testclient import TestClient
@@ -6,7 +6,7 @@ from fastapi.testclient import TestClient
 from backend.app.config import Settings
 from backend.app.db import Database
 from backend.app.main import create_app
-from backend.app.classifier import confirms_cry, longest_positive_streak
+from backend.app.classifier import InferenceResult, InferenceUnavailable, confirms_cry, longest_positive_streak
 
 
 def make_settings(path=":memory:"):
@@ -119,3 +119,146 @@ def test_consecutive_window_confirmation():
     assert confirms_cry([0.7, 0.75, 0.1], 0.4, required=2)
     assert not confirms_cry([0.7, 0.1, 0.8], 0.4, required=2)
     assert longest_positive_streak([0.7, 0.75, 0.1], 0.4) == 2
+
+
+APP_AUTH = {"Authorization": "Bearer test-app-token"}
+DEVICE_URL = "/api/v1/devices/rt-spark-01"
+
+
+class MutableClassifier:
+    crying = True
+    unavailable = False
+
+    def predict_pcm16(self, *_):
+        if self.unavailable:
+            raise InferenceUnavailable("test model failure")
+        return InferenceResult(self.crying, 0.8 if self.crying else 0.1,
+                               "baby_crying" if self.crying else "background", 2 if self.crying else 0)
+
+
+def upload_audio(client, sequence, captured_at):
+    return client.post(DEVICE_URL + "/audio-windows", content=b"\0" * 64_000, headers={
+        "Authorization": "Bearer test-device-token",
+        "X-Captured-At": captured_at.isoformat(),
+        "X-Sequence": str(sequence), "X-Sample-Rate-Hz": "16000",
+    })
+
+
+def test_sustained_cry_groups_events_even_after_acknowledgement_and_restart(tmp_path):
+    path = str(tmp_path / "monitor.sqlite3")
+    pushes = []
+    model = MutableClassifier()
+    client = TestClient(create_app(make_settings(path), classifier=model,
+                                  push_sender=lambda _, event, __: pushes.append(event["event_id"]) or 1))
+    start = datetime.now(timezone.utc) - timedelta(seconds=50)
+    first = upload_audio(client, 0, start).json()["event"]["event_id"]
+    client.post(f"/api/v1/events/{first}/acknowledgement", headers=APP_AUTH, json={})
+    for sequence in range(1, 5):
+        assert upload_audio(client, sequence, start + timedelta(seconds=sequence * 2)).json()["event"]["event_id"] == first
+    restarted = TestClient(create_app(make_settings(path), classifier=model,
+                                     push_sender=lambda *_: pushes.append("unexpected") or 1))
+    assert upload_audio(restarted, 5, start + timedelta(seconds=10)).json()["event"]["event_id"] == first
+    assert pushes == [first]
+
+
+def test_three_background_windows_clear_episode_and_rearm_without_retry_duplicates():
+    db = Database(":memory:")
+    model = MutableClassifier()
+    pushes = []
+    client = TestClient(create_app(make_settings(), db, classifier=model,
+                                  push_sender=lambda _, event, __: pushes.append(event["event_id"]) or 1))
+    start = datetime.now(timezone.utc) - timedelta(seconds=30)
+    first = upload_audio(client, 0, start).json()["event"]["event_id"]
+    model.crying = False
+    for seq in range(1, 4):
+        assert upload_audio(client, seq, start + timedelta(seconds=2 * seq)).status_code == 200
+    assert db.event(first)["resolved_at"] is not None
+    assert client.get(DEVICE_URL + "/latest", headers=APP_AUTH).json()["inference"]["status"] == "background"
+    # A delayed retry must not re-open an already cleared episode.
+    assert upload_audio(client, 0, start).json()["event"]["event_id"] == first
+    assert len(pushes) == 1
+    model.crying = True
+    second = upload_audio(client, 0, start + timedelta(seconds=10)).json()["event"]["event_id"]
+    assert second != first  # Sequence may reset after a device restart.
+    assert len(pushes) == 2
+
+
+def test_out_of_order_audio_does_not_overwrite_current_state_or_notify():
+    db = Database(":memory:")
+    model = MutableClassifier()
+    model.crying = False
+    client = TestClient(create_app(make_settings(), db, classifier=model, push_sender=lambda *_: 0))
+    now = datetime.now(timezone.utc)
+    assert upload_audio(client, 2, now - timedelta(seconds=2)).status_code == 200
+    model.crying = True
+    assert upload_audio(client, 1, now - timedelta(seconds=10)).json()["event"] is None
+    assert db.inference_status("rt-spark-01")["status"] == "background"
+    assert db.events("rt-spark-01") == []
+
+
+def test_audio_gap_starts_new_episode():
+    db = Database(":memory:")
+    client = TestClient(create_app(make_settings(), db, classifier=MutableClassifier(), push_sender=lambda *_: 0))
+    now = datetime.now(timezone.utc)
+    first = upload_audio(client, 0, now - timedelta(seconds=300)).json()["event"]["event_id"]
+    second = upload_audio(client, 1, now - timedelta(seconds=2)).json()["event"]["event_id"]
+    assert first != second
+    assert db.event(first)["resolved_at"] is not None
+
+
+def test_inference_fault_and_recovery_are_visible_and_retryable():
+    db = Database(":memory:")
+    model = MutableClassifier()
+    client = TestClient(create_app(make_settings(), db, classifier=model, push_sender=lambda *_: 0))
+    assert client.get(DEVICE_URL + "/latest", headers=APP_AUTH).json()["inference"]["status"] == "unknown"
+    now = datetime.now(timezone.utc) - timedelta(seconds=2)
+    model.unavailable = True
+    assert upload_audio(client, 0, now).status_code == 503
+    assert client.get(DEVICE_URL + "/latest", headers=APP_AUTH).json()["inference"]["status"] == "unavailable"
+    model.unavailable = False
+    assert upload_audio(client, 0, now).status_code == 200
+    assert client.get(DEVICE_URL + "/latest", headers=APP_AUTH).json()["inference"]["status"] == "crying"
+
+
+def test_disabled_and_old_inference_are_not_reported_as_current_background():
+    disabled = TestClient(create_app(make_settings(), Database(":memory:"), classifier=None))
+    assert disabled.get(DEVICE_URL + "/latest", headers=APP_AUTH).json()["inference"]["status"] == "unavailable"
+    model = MutableClassifier()
+    model.crying = False
+    client = TestClient(create_app(make_settings(), Database(":memory:"), classifier=model))
+    assert upload_audio(client, 0, datetime.now(timezone.utc) - timedelta(minutes=10)).status_code == 200
+    assert client.get(DEVICE_URL + "/latest", headers=APP_AUTH).json()["inference"]["status"] == "stale"
+
+
+def test_invalid_audio_sequence_and_future_capture_are_rejected():
+    client = TestClient(create_app(make_settings(), Database(":memory:"), classifier=MutableClassifier()))
+    assert upload_audio(client, -1, datetime.now(timezone.utc)).status_code == 422
+    assert upload_audio(client, 0, datetime.now(timezone.utc) + timedelta(hours=1)).status_code == 422
+
+
+def test_phone_registration_does_not_mark_device_online():
+    db = Database(":memory:")
+    client = TestClient(create_app(make_settings(), db, classifier=None))
+    assert client.post("/api/v1/app/installations", headers=APP_AUTH, json={
+        "installation_id": "test-installation", "device_id": "rt-spark-01", "fcm_token": "x" * 32,
+    }).status_code == 201
+    latest = client.get(DEVICE_URL + "/latest", headers=APP_AUTH).json()
+    assert latest["device"]["network_status"] == "offline"
+    assert latest["alert_settings"]["temperature_max_c"] == 30
+    assert latest["alert_settings"]["cry_clear_windows"] == 3
+
+
+def test_concurrent_positive_windows_create_one_episode(tmp_path):
+    from concurrent.futures import ThreadPoolExecutor
+    path = str(tmp_path / "concurrent.sqlite3")
+    Database(path)
+    start = datetime.now(timezone.utc) - timedelta(seconds=30)
+    result = MutableClassifier().predict_pcm16()
+    def record(index):
+        return Database(path).record_audio_result(
+            "rt-spark-01", (start + timedelta(seconds=2 * index)).isoformat(timespec="microseconds"), index, result
+        )[1]
+    with ThreadPoolExecutor(max_workers=4) as pool:
+        created = list(pool.map(record, range(8)))
+    assert sum(created) == 1
+    assert len(Database(path).events("rt-spark-01")) == 1

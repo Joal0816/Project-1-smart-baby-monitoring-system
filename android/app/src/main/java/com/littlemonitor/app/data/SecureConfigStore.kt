@@ -1,6 +1,7 @@
 package com.littlemonitor.app.data
 
 import android.content.Context
+import com.littlemonitor.app.BuildConfig
 import android.security.keystore.KeyGenParameterSpec
 import android.security.keystore.KeyProperties
 import android.util.Base64
@@ -28,7 +29,7 @@ class SecureConfigStore(context: Context) {
     )
 
     fun save(config: MonitorConfig) {
-        require(config.baseUrl.isBlank() || config.baseUrl.startsWith("https://", ignoreCase = true)) {
+        require(config.baseUrl.isBlank() || isAllowedBaseUrl(config.baseUrl)) {
             "Use an HTTPS address for the monitor API."
         }
         prefs.edit()
@@ -37,6 +38,11 @@ class SecureConfigStore(context: Context) {
             .putString("device_id", config.deviceId.trim())
             .apply()
     }
+
+    private fun isAllowedBaseUrl(url: String): Boolean =
+        url.startsWith("https://", ignoreCase = true) ||
+            (BuildConfig.DEBUG && (url.startsWith("http://10.0.2.2:") ||
+                url.startsWith("http://127.0.0.1:")))
 
     private fun key(): SecretKey {
         val store = KeyStore.getInstance("AndroidKeyStore").apply { load(null) }

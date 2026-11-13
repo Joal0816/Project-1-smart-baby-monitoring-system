@@ -24,7 +24,7 @@ An educational, measured prototype that demonstrates embedded sensing, cry class
 
 ## Operating Context
 
-The system is evaluated with an RT-Spark board, Android device, local workstation backend, classroom test fixture, and licensed prerecorded audio. The board is not yet present in the workspace; board-specific hardware details remain to be verified.
+The system is evaluated with an RT-Spark board, Android device, local workstation backend, classroom test fixture, and licensed prerecorded audio. The board is connected and running the firmware: console, 168 MHz clock, three onboard sensors, ES8388/I2S audio, and live microphone capture are verified. Wi-Fi, display, buttons, buzzer, and end-to-end notification trials remain to be completed.
 
 ## Capabilities and Constraints
 
@@ -40,7 +40,7 @@ The caregiver app should feel friendly and cartoonish, with gentle animations. K
 
 ## Evidence on Hand
 
-The assignment PDF is the requirements source. No device readings, test audio, board pinout, or performance measurements are available yet. Any preview readings must be labeled as demo data.
+The assignment PDF is the requirements source. Device readings, live microphone audio, a 2 s activity-gated window, heap/stack figures, and I2S timing are available. The board pinout is partially verified; classifier accuracy, notification trials, Wi-Fi recovery, display/controls, and report/video evidence are still pending. Any preview readings must be labeled as demo data.
 
 ## Product Principles
 

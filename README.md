@@ -9,9 +9,9 @@ Educational BCA182 Project 1 prototype for an RT-Spark / STM32F407 device. It in
 - Run the local preview from VS Code with **Terminal → Run Task → Start caregiver UI preview (VS Code)**, then open **Browser: Open Integrated Browser** and enter `http://localhost:4174`. The page reloads when preview files change.
 - The browser dashboard starts with clearly labeled sample data and can connect to the authenticated FastAPI readings, trends, event history, and event acknowledgement endpoints. Its app bearer token stays in page memory and is cleared on reload; only the backend URL and device ID are saved in this browser.
 - Use direct browser-to-API authentication only for local or trusted development. A shared/public deployment needs a server-side authenticated proxy; serve non-local APIs over HTTPS and keep the board’s device token on the device.
-- The Android dashboard, History and Settings screens are implemented in Jetpack Compose. It polls the authenticated API every 15 seconds, encrypts the app token with Android Keystore, and supports event acknowledgement and optional FCM registration.
-- Firmware currently provides the PlatformIO/FreeRTOS foundation and portable alert rules. Peripheral tasks remain intentionally inactive until the board, pinout, and Wi-Fi module are verified.
-- The RT-Spark board is not yet available in this workspace. Pin assignments, clock configuration, Wi-Fi module capabilities, flashing, and physical sensor validation remain hardware gates.
+- The Android dashboard, History and Settings screens are implemented in Jetpack Compose. It polls the authenticated API every 15 seconds, encrypts the app token with Android Keystore, supports event acknowledgement and optional FCM registration, and posts a local `Possible baby cry` notification for newly observed unacknowledged cry events. The debug app was exercised on an API 35 emulator against the local backend; FCM remote push still requires project credentials.
+- Firmware builds and flashes through PlatformIO, runs at 168 MHz from the 8 MHz HSE/PLL, logs over USART1 at 115200 on the ST-Link VCP, blinks the PF12 red LED from a FreeRTOS task, and reads the onboard AHT21 temperature/humidity, AP3216C light/proximity, and ICM20608 accelerometer/gyroscope sensors once per second. It also captures 16 kHz stereo PCM16 from the ES8388 over I2S3/I2S3ext + DMA, with a 2 s activity-gated window. The onboard RW007 joins a 2.4 GHz AP, obtains DHCP, and sends real sensor telemetry every ~5 s over TLS 1.2 with a pinned local CA. Authenticated telemetry and a 64 KB audio-window POST were accepted by the backend. The local test uses a PC-hosted hotspot and a loopback TLS terminator; real audio capture gating, time sync, and production TLS termination remain outstanding. Display and local controls remain inactive.
+- An RT-Spark STM32F407 board is available and has been flashed over SWD. The console, red LED, HSE/PLL clock, three onboard I²C sensors, I2S/DMA audio path, live 3.5 mm microphone window, RW007 SPI/command transport, Wi-Fi join, DHCP, and authenticated telemetry POST are verified. TLS, audio upload, display, and local controls remain unverified.
 - No Firebase project or service-account credentials are included. FCM requires the user to configure them locally.
 
 ## Live web preview
@@ -55,13 +55,19 @@ set +a
 MONITOR_HOST=0.0.0.0 python run.py
 ```
 
-For YAMNet inference, install `requirements-ml.txt`; first model use downloads the model and its class map. The server stores sensor data and event metadata in SQLite. Audio windows are processed in memory and are not written to logs or the database.
+For YAMNet inference, install `requirements-ml.txt`; first model use downloads the model and its class map. The tested set is Python 3.13, TensorFlow CPU 2.21.0, TensorFlow Hub 0.16.1, and setuptools `<81` (Hub still imports `pkg_resources`). The server stores sensor data and event metadata in SQLite. Audio windows are processed in memory and are not written to logs or the database.
+
+On Windows, if TensorFlow import fails with an Application Control or blocked-DLL error, clear the zone marker on the local environment and retry:
+
+```powershell
+Get-ChildItem .venv -Recurse -File | Unblock-File
+```
 
 For device and phone access over the LAN, serve the API with a locally trusted HTTPS certificate. Never use cleartext transport for audio. Configure Firebase service credentials in environment variables on the server only; never commit them.
 
 ## Firmware setup
 
-Open this folder in VS Code with PlatformIO. The provisional manifest is only a compile target based on the assignment’s STM32F407ZGT6-compatible requirement. Confirm the actual MCU, clock, flash/RAM, pinout, upload/debug interface, and Wi-Fi module from the board revision and schematic before flashing or enabling peripherals.
+Open this folder in VS Code with PlatformIO. The manifest targets the STM32F407ZGT6; SWD on the connected board reports DEV_ID `0x413` and 1024 KiB flash. Confirm the board revision and the remaining pin/clock details before enabling peripherals. On Windows, install the signed STSW-LINK009 driver if the ST-Link debug interface reports Code 28; the ST-Link virtual COM port carries the 115200 8N1 logs.
 
 ```bash
 pio run
@@ -73,7 +79,7 @@ pio device monitor
 
 ## Android setup
 
-Open the `android/` folder in Android Studio or build the debug APK from a terminal:
+Open the `android/` folder in Android Studio or build the debug APK from a terminal. The project needs JDK 17 and Android SDK platform 37 (`compileSdk = 37`), because the pinned Compose libraries require API 37:
 
 ```bash
 cd android
@@ -82,7 +88,16 @@ cd android
 
 The debug APK is written to `android/app/build/outputs/apk/debug/app-debug.apk`. Configure the backend HTTPS URL, app bearer token, and device ID in the app's Settings screen; the token is encrypted with Android Keystore on that phone. Install the locally trusted development CA on the Android test device. To enable push delivery, add your app's `google-services.json` under `android/app/` (it is ignored by Git) and configure server-side Firebase Admin credentials on the backend. The Google services Gradle plugin is applied only when that local JSON file exists.
 
-The API and Android app currently require HTTPS. For classroom LAN use, set up a locally trusted development certificate and trust its CA on the test phone. Do not enable cleartext HTTP or commit Firebase credentials.
+For a local emulator against the workstation backend, the **debug** build also permits `http://10.0.2.2:8000`; release builds remain HTTPS-only. Use the app token and device ID configured on the backend.
+
+While the onboard Wi-Fi transport is unfinished, a bench bridge can feed live serial sensor readings into the backend:
+
+```powershell
+$env:MONITOR_DEVICE_TOKEN = "dev-device-token"   # use your local token; do not commit it
+.\.venv\Scripts\python.exe tools\serial_telemetry_bridge.py --port auto --device-id rt-spark-01
+```
+
+The bridge is a development aid only; final connectivity must use the onboard Wi-Fi with authenticated transport.
 
 ## Local checks
 
@@ -92,8 +107,17 @@ The portable alert rules can be tested on the host without an STM32 board:
 ./tools/test_firmware_host.sh
 ```
 
+On Windows without a host `cc`, use the MinGW compiler installed by PlatformIO and add its `bin` directory to `PATH` (the compiler's helper processes need the DLLs there):
+
+```powershell
+$env:PLATFORMIO_CORE_DIR = Join-Path (Get-Location) '.pio-core'
+$env:PATH = "$env:PLATFORMIO_CORE_DIR\packages\toolchain-gccmingw32\bin;$env:PATH"
+gcc -std=c11 -Wall -Wextra -Werror -pedantic -Ifirmware/include firmware/src/alert_logic.c firmware/test/test_alert_logic.c -lm -o test-alert-logic.exe
+.\test-alert-logic.exe
+```
+
 Backend tests are in `backend/tests/`; install `backend/requirements.txt` and `pytest` before running them. Actual model accuracy, push latency, sensor readings, FreeRTOS timing, and board bring-up remain evidence to collect on configured services and hardware; see `docs/evaluation.md`.
 
 ## Evaluation and deliverables
 
-See `docs/evaluation.md` for the required test evidence. Submission evidence must include at least 20 unseen cry and 20 non-cry examples, at least 10 end-to-end notification trials, sensor comparisons where available, FreeRTOS timing/heap/stack measurements, Wi-Fi outage/recovery behavior, unit tests, static-analysis findings, the report, and a demonstration video.
+See `docs/evaluation.md` and `docs/ml-evaluation.md` for measured evidence. The classifier has been evaluated on 20 unseen cry + 20 unseen non-cry ESC-50 clips (test precision 1.000, recall 0.850, F1 0.919 at 0.05; 1.000/0.800/0.889 at the 0.35 default). Ten local notification trials delivered 10/10 (median 14.18 s from API event to app notification). Capture-to-notification over onboard Wi-Fi with real audio, FCM delivery, Wi-Fi outage/recovery, the report, and the demonstration video remain outstanding.

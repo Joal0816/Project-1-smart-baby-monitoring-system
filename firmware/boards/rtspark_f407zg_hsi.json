@@ -18,10 +18,13 @@
   "frameworks": ["stm32cube"],
   "platforms": ["ststm32"],
   "debug": {
+    "jlink_device": "STM32F407ZG",
     "openocd_target": "stm32f4x",
     "svd_path": "STM32F40x.svd"
   },
   "upload": {
+    "protocol": "stlink",
+    "protocols": ["stlink", "cmsis-dap", "jlink"],
     "maximum_size": 1048576,
     "maximum_ram_size": 131072
   }

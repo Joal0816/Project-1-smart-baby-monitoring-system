@@ -63,17 +63,25 @@ MonitorAlertKind monitor_alert_update(MonitorAlertState *state,
                        &state->humidity_out_count, &state->humidity_in_count,
                        &state->humidity_latched);
 
-    if (input->inference_valid && isfinite(input->cry_score) && input->cry_score >= config->cry_threshold) {
+    const bool inference_valid = input->inference_valid && isfinite(input->cry_score) &&
+                                 input->cry_score >= 0.0f && input->cry_score <= 1.0f;
+    if (inference_valid && input->cry_score >= config->cry_threshold) {
         state->cry_positive_streak = saturating_increment(state->cry_positive_streak);
         if (state->cry_positive_streak >= config->cry_confirm_windows) state->cry_latched = true;
-    } else if (input->inference_valid) {
+    } else if (inference_valid) {
         state->cry_positive_streak = 0U;
         state->cry_latched = false;
+    } else {
+        /* Missing inference interrupts consecutive-window confirmation. */
+        state->cry_positive_streak = 0U;
     }
 
-    if (input->sensor_fault) state->active_kind = MONITOR_ALERT_SENSOR_FAULT;
+    if (input->sensor_fault || !input->temperature_valid || !input->humidity_valid ||
+        !isfinite(input->temperature_c) || !isfinite(input->humidity_pct)) {
+        state->active_kind = MONITOR_ALERT_SENSOR_FAULT;
+    }
     else if (input->network_fault) state->active_kind = MONITOR_ALERT_NETWORK_FAULT;
-    else if (!input->inference_valid) state->active_kind = MONITOR_ALERT_INFERENCE_UNAVAILABLE;
+    else if (!inference_valid) state->active_kind = MONITOR_ALERT_INFERENCE_UNAVAILABLE;
     else if (state->cry_latched) state->active_kind = MONITOR_ALERT_CRY;
     else if (state->temperature_latched) state->active_kind = MONITOR_ALERT_TEMPERATURE;
     else if (state->humidity_latched) state->active_kind = MONITOR_ALERT_HUMIDITY;

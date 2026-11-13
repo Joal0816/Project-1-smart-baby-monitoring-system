@@ -19,7 +19,7 @@ env.BuildSources(
     "$BUILD_DIR/FreeRTOS",
     str(kernel),
     src_filter=(
-        "-<*> +<tasks.c> +<queue.c> +<list.c> "
+        "-<*> +<tasks.c> +<queue.c> +<list.c> +<timers.c> "
         "+<portable/GCC/ARM_CM4F/port.c> +<portable/MemMang/heap_4.c>"
     ),
 )

@@ -1,0 +1,9 @@
+#pragma once
+
+/* Local-only Wi-Fi provisioning. Copy to wifi_config.local.h and fill in.
+ * The real file is gitignored; never commit credentials.
+ *
+ * Use a 2.4 GHz WPA2-PSK access point without a captive portal.
+ */
+#define MONITOR_WIFI_SSID "replace-with-ssid"
+#define MONITOR_WIFI_PASSWORD "replace-with-password"

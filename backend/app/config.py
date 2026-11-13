@@ -65,7 +65,7 @@ class Settings:
             ),
             yamnet_class_map_url=os.getenv(
                 "MONITOR_YAMNET_CLASS_MAP_URL",
-                "https://storage.googleapis.com/audioset/yamnet/yamnet_class_map.csv",
+                "https://raw.githubusercontent.com/tensorflow/models/master/research/audioset/yamnet/yamnet_class_map.csv",
             ),
             firebase_project_id=os.getenv("FIREBASE_PROJECT_ID", ""),
         )

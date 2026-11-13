@@ -10,7 +10,7 @@ if (file("google-services.json").isFile) {
 
 android {
     namespace = "com.littlemonitor.app"
-    compileSdk = 36
+    compileSdk = 37
 
     defaultConfig {
         applicationId = "com.littlemonitor.app"
@@ -20,7 +20,10 @@ android {
         versionName = "1.0"
     }
 
-    buildFeatures { compose = true }
+    buildFeatures {
+        compose = true
+        buildConfig = true
+    }
 
     compileOptions {
         sourceCompatibility = JavaVersion.VERSION_17

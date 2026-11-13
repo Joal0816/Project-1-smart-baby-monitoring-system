@@ -6,19 +6,19 @@ import json
 import logging
 from datetime import datetime, timezone
 from typing import Annotated, Callable
-from uuid import uuid4
 
-from fastapi import Depends, FastAPI, Header, HTTPException, Query, Request, status
+from fastapi import FastAPI, Header, HTTPException, Query, Request, status
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field, field_validator
 
 from .classifier import InferenceUnavailable, classifier_from_environment
 from .config import Settings
-from .db import Database, utc_now
+from .db import AUDIO_STALE_SECONDS, CRY_CLEAR_WINDOWS, Database, utc_now
 from .push import send_event_notifications
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
+_DEFAULT_CLASSIFIER = object()
 
 
 class TelemetryPayload(BaseModel):
@@ -60,12 +60,12 @@ def row_to_dict(row):
 def create_app(
     settings: Settings | None = None,
     database: Database | None = None,
-    classifier=None,
+    classifier=_DEFAULT_CLASSIFIER,
     push_sender: Callable | None = None,
 ) -> FastAPI:
     settings = settings or Settings.from_environment()
     database = database or Database(settings.database_path)
-    classifier = classifier if classifier is not None else classifier_from_environment(
+    classifier = classifier if classifier is not _DEFAULT_CLASSIFIER else classifier_from_environment(
         settings.cry_score_threshold,
         settings.yamnet_model_handle,
         settings.yamnet_class_map_url,
@@ -209,11 +209,15 @@ def create_app(
         authenticate_device(device_id, authorization)
         if captured_at is None or sequence is None or sample_rate_hz is None:
             raise HTTPException(422, "X-Captured-At, X-Sequence, and X-Sample-Rate-Hz are required")
+        if sequence < 0:
+            raise HTTPException(422, "X-Sequence must be non-negative")
         try:
             parsed_time = datetime.fromisoformat(captured_at.replace("Z", "+00:00"))
             if parsed_time.tzinfo is None:
                 raise ValueError("timezone required")
             parsed_time = parsed_time.astimezone(timezone.utc)
+            if (parsed_time - datetime.now(timezone.utc)).total_seconds() > 30:
+                raise ValueError("capture time is in the future")
         except ValueError as error:
             raise HTTPException(422, "X-Captured-At must be ISO 8601 with a timezone") from error
         chunks = []
@@ -226,29 +230,29 @@ def create_app(
         body = b"".join(chunks)
         if len(body) != 64_000 or sample_rate_hz != 16_000:
             raise HTTPException(422, "Expected 2 seconds of 16 kHz mono PCM16 audio")
+        capture_time = parsed_time.isoformat(timespec="microseconds")
+        cached = database.audio_window(device_id, capture_time, sequence)
+        if cached:
+            return {"accepted": True, "device_id": device_id, "sequence": sequence,
+                    "label": cached["label"], "confidence": round(cached["confidence"], 5),
+                    "confirmed": cached["label"] == "baby_crying",
+                    "event": row_to_dict(database.event(cached["event_id"])) if cached["event_id"] else None}
         if app.state.classifier is None:
+            database.mark_inference_unavailable(device_id, capture_time)
             raise HTTPException(503, "Audio inference is not configured")
         try:
             result = await asyncio.to_thread(app.state.classifier.predict_pcm16, body, sample_rate_hz)
         except ValueError as error:
             raise HTTPException(422, str(error)) from error
         except InferenceUnavailable as error:
+            database.mark_inference_unavailable(device_id, capture_time)
             logger.warning("Inference unavailable for device %s: %s", device_id, error)
             raise HTTPException(503, "Audio inference is temporarily unavailable") from error
 
-        event = None
-        if result.crying:
-            row = create_event(
-                device_id,
-                "cry",
-                "Likely baby cry detected",
-                parsed_time.isoformat(),
-                {"label": result.label, "sequence": sequence,
-                 "consecutive_windows": result.consecutive_windows},
-                confidence=result.confidence,
-                idempotency_key=f"{device_id}:audio:{sequence}",
-            )
-            event = row_to_dict(row)
+        row, created = database.record_audio_result(device_id, capture_time, sequence, result)
+        if created:
+            notify(row)
+        event = row_to_dict(row)
         # `body` is local request memory only. It is never logged or written to the database.
         del body
         return {"accepted": True, "device_id": device_id, "sequence": sequence,
@@ -265,8 +269,34 @@ def create_app(
         with database.connection() as connection:
             device = connection.execute("SELECT * FROM devices WHERE device_id=?", (device_id,)).fetchone()
         reading = database.latest_reading(device_id)
-        return {"device": row_to_dict(device), "reading": row_to_dict(reading),
-                "received_at": reading["received_at"] if reading else None}
+        device_data = row_to_dict(device)
+        now = datetime.now(timezone.utc)
+        def fresh(raw):
+            return raw is not None and 0 <= (now - datetime.fromisoformat(raw)).total_seconds() <= AUDIO_STALE_SECONDS
+        if device_data:
+            device_data["network_status"] = "online" if fresh(device_data["last_seen_at"]) else "offline"
+        inference = row_to_dict(database.inference_status(device_id))
+        if app.state.classifier is None:
+            inference = {**(inference or {}), "status": "unavailable"}
+        elif inference is None:
+            inference = {"status": "unknown", "captured_at": None, "checked_at": None}
+        elif inference["status"] != "unavailable" and not (
+            fresh(inference["captured_at"]) and fresh(inference["checked_at"])
+        ):
+            inference["status"] = "stale"
+        return {"device": device_data, "reading": row_to_dict(reading),
+                "received_at": reading["received_at"] if reading else None,
+                "inference": inference,
+                "alert_settings": {
+                    "temperature_min_c": settings.temperature_min_c,
+                    "temperature_max_c": settings.temperature_max_c,
+                    "humidity_min_pct": settings.humidity_min_pct,
+                    "humidity_max_pct": settings.humidity_max_pct,
+                    "cry_score_threshold": settings.cry_score_threshold,
+                    "cry_confirm_frames": 2,
+                    "cry_clear_windows": CRY_CLEAR_WINDOWS,
+                    "stale_after_seconds": AUDIO_STALE_SECONDS,
+                }}
 
     @app.get("/api/v1/readings")
     def get_readings(
@@ -305,7 +335,6 @@ def create_app(
         authorization: Annotated[str | None, Header()] = None,
     ):
         authenticate_app(authorization)
-        database.ensure_device(payload.device_id)
         database.upsert_installation(payload.installation_id, payload.device_id, payload.fcm_token)
         return {"registered": True, "installation_id": payload.installation_id}
 
