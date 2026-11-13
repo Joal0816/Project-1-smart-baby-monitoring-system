@@ -78,7 +78,7 @@ The APK built against local JDK 17 and Android SDK. The app was previously exerc
 
 ## Audio diagnostic
 
-A temporary RAM dump of the 2 s window after loud cry playback measured RMS 216, peak 1,521, and 11,939 zero crossings; the backend classified it as `background` at 0.20837. The source ESC-50 cry window measures RMS 3,624, peak 23,483, and 8,939 zero crossings. The mismatch is in the microphone/acoustic input chain, not the TLS upload or classifier adapter.
+A temporary RAM dump of the 2 s window after loud cry playback measured RMS 216, peak 1,521, and 11,939 zero crossings; the backend classified it as `background` at 0.20837. With the pink TRS mic in CN3, LINPUT2 measured RMS ~4 even during cry playback; with the plug removed, the onboard LINPUT1 path produced window RMS 15–17. The schematic shows CN3 as a four-conductor headset jack, not a plain TRS microphone input, so a compatible TRRS headset/adapter is required. The source ESC-50 cry window measures RMS 3,624, peak 23,483, and 8,939 zero crossings. The mismatch is in the microphone/acoustic input chain, not the TLS upload or classifier adapter.
 
 ## Not yet evidenced
 
