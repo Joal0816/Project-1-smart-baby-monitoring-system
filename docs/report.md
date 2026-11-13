@@ -45,7 +45,7 @@ Five FreeRTOS tasks are created:
 | Local UI | 3 | 256 | PF12 blink |
 | Health | 1 | 256 | 1 Hz heap/stack/health logging |
 
-Measured runtime: 15,592 B free of 24,576 B FreeRTOS heap; stack high-water 96/234/489/233/125 words; 94,180 B static RAM including the 64 KiB audio window; 27,032 B flash. Tick is 1 kHz. The sensor bus uses a FreeRTOS mutex shared with the codec.
+Latest measured build: 73,364 B of 131,072 B main SRAM (plus the 64 KiB CCM audio window); 139,356 B of 1,048,576 B flash. Runtime health logs show 9,448 B minimum free of 24,576 B FreeRTOS heap and stack high-water 96/236/142/233/125 words (Sensors/Audio/Network/LocalUI/Health). Tick is 1 kHz. The sensor bus uses a FreeRTOS mutex shared with the codec.
 
 ### Audio
 
@@ -81,9 +81,8 @@ Measured runtime: 15,592 B free of 24,576 B FreeRTOS heap; stack high-water 96/2
 
 ## 8. Outstanding work
 
-1. Onboard RW007 Wi-Fi and authenticated TLS upload; replace the serial bridge.
-2. Capture-to-notification integration and real FCM delivery; repeat latency trials end to end.
-3. Wi-Fi loss/recovery and local outage queue.
-4. Display/buttons/buzzer and local acknowledge/mute.
-5. Speech/music/silence confusers and a larger independent test set.
-6. Demonstration video, final report formatting, repository commit history, and tagged submission (no commit/push has been made).
+1. Controlled acoustic cry source and 10 microphone-to-app trials with latency/delivery records; keep the earlier API-to-app polls separate.
+2. Real FCM delivery once project credentials exist; local notification fallback is verified.
+3. Display/buttons/buzzer and local acknowledge/mute.
+4. Speech/music/silence confusers and a larger independent test set.
+5. Demonstration video, final report formatting, and tagged submission. Do not tag until item 1 is recorded.
