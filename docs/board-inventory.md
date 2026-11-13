@@ -8,10 +8,10 @@ An RT-Spark STM32F407 board is available and connected. The official Spark-1 BSP
 | AHT10/AHT21 | Room temperature/humidity | Verified at `0x38` on soft I²C3 (SCL PE0, SDA PE1); live readings 30.8–30.9 °C, 78.5–79.1 % RH. The AHT21 NACKs the AHT10 normal-mode command but measures correctly | I²C scan, repeated readout; reference comparison and controlled humidity test pending |
 | AP3216C | Ambient light and obstruction indication | Verified at `0x1E` on soft I²C2 (SCL PF1, SDA PF0); live 25.6–27.7 lux, proximity 0–8 with no deliberate obstruction | I²C scan, repeated readout; controlled light/obstruction test pending |
 | ICM20608 | Movement/orientation of monitor device | Verified at `0x68` on soft I²C2; `WHO_AM_I = 0xAF` (BSP does not gate on ID). Live accel ≈ 120–230 / 1260–1360 / 17300–17540, gyro near zero at rest | I²C scan, static readout; controlled tilt test pending. Never infer infant movement |
-| Wi-Fi module | Secure API transport | BSP lists RW007 (SPI); firmware/TLS capabilities unverified | Part/firmware, command set, TCP/IP, TLS, reconnect test |
+| Wi-Fi module | Secure API transport | RW007 on SPI2: join, DHCP, TLS 1.2 AES-GCM with pinned CA, telemetry and 64 KB audio POST verified; 30 s AP outage queue/drain verified | Long soak and sustained-throughput measurement pending |
 | Display, LEDs, buttons, buzzer | Local readings, status, acknowledge/mute/test | Red LED PF12 visually confirmed blinking at 1 Hz; blue LED PF11 documented and active-low; ST7789 240×240 via FSMC; KEY0 on PC0; buzzer mapping not yet extracted | Pin table and individual HAL test |
 | RTC, flash, TF storage | Time and outage metadata queue | Present per BSP; untested | Capacity, driver, persistence/recovery test |
-| ES8388 audio codec | Audio capture front end; external microphone input | Configured at `0x10` on soft I²C2; I2S3 master + I2S3ext RX + DMA streams 16 kHz stereo PCM16. Measured half-buffer period 15.7 ms for 512 samples. Live 2 s mono window captured: RMS 113.3, peak 1108 | Codec/I²S pin map verified; upload and classification pending |
+| ES8388 audio codec | Audio capture front end; external microphone input | Configured at `0x10` on soft I²C2; I2S3 master + I2S3ext RX + DMA streams 16 kHz stereo PCM16. Measured half-buffer period 15.7 ms for 512 samples. 64,000-byte window upload and backend classification verified; current ambient input does not reach the RMS 800 gate | Controlled cry/acoustic source and gate calibration pending |
 | External microphone | Required audio capture | 3.5 mm microphone connected to CN3 (PJ-320A); live signal captured and activity-gated | Module details/licence and controlled cry test pending |
 
 ## Pin map (verified or documented)
@@ -42,4 +42,4 @@ An RT-Spark STM32F407 board is available and connected. The official Spark-1 BSP
 2. **Partial:** ST-Link SWD upload/debug and HSE/PLL 168 MHz verified; memory layout and boot mode still pending.
 3. **Done:** PlatformIO build, ST-Link flash, USART1 serial logging, and PF12 blink verified; the user observed the LED blinking.
 4. **Done:** FreeRTOS runs five tasks; the sensor task reads the three I²C sensors once per second, and heap/stack values are logged. Worst-case latency is not yet measured.
-5. **Partial:** AHT10/AHT21, AP3216C, ICM20608, I2S3/ES8388 capture, live microphone signal, and a 2 s activity-gated window are verified. Still pending: window upload/classification, Wi-Fi, display, buttons, buzzer, storage, and integration.
+5. **Partial:** AHT10/AHT21, AP3216C, ICM20608, I2S3/ES8388 capture, 2 s window upload/classification, RW007 Wi-Fi/TLS, and outage queue are verified. Still pending: controlled cry capture, sustained soak, display, buttons, buzzer, storage, and final report/video.

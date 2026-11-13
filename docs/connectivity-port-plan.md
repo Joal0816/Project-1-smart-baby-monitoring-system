@@ -1,6 +1,6 @@
 # Connectivity Port Plan (RW007 + TLS + FCM)
 
-The remaining blockers are external to the code already written. This document records the concrete porting path so the work is reproducible rather than hidden in a stub.
+The RW007, lwIP, TLS, and audio-upload path are implemented and verified on hardware. The remaining evidence gap is a controlled acoustic cry source and the final capture-to-notification trials. This document records the path and the measured result so the work is reproducible rather than hidden in a stub.
 
 ## 1. RW007 Wi-Fi
 
@@ -40,10 +40,10 @@ The RW007 `CLK/RX/BOOT0` and `nCS/BOOT1` pins share the SPI clock and chip-selec
 3. **Protocol layer**: port the RW007 command/response framing, sequence numbers, buffer ownership, and WLAN commands (`INIT`, `JOIN`, `GET_RSSI`, `DISCONNECT`).
 4. **lwIP netif**: integrate the STM32Cube lwIP middleware, implement `low_level_output` for Ethernet frames, and feed received frames into `ethernet_input`.
 5. **Credentials**: store the SSID/password and device token outside Git; use a local ignored configuration header or build-time provisioning.
-6. **TLS**: integrate mbedTLS (already in the framework), pin the local development CA, and send authenticated `POST /telemetry` and `POST /audio-windows`. Reject invalid certificates.
-7. **Failure behavior**: exponential reconnect, bounded telemetry/audio queues, stale/fault UI, and post-recovery drain.
+6. **TLS**: mbedTLS 2.16 with a pinned local CA, hostname verification, and an explicit `ECDHE-RSA-AES128-GCM-SHA256` suite. A Caddy terminator serves TLS 1.2 on 8443 and reverse-proxies to FastAPI; no `SECLEVEL=0` override. Authenticated `POST /telemetry` and `POST /audio-windows` are verified.
+7. **Failure behavior**: bounded 8-slot telemetry queue, 1 Hz sensor sampling rate-limited to one queued sample per 5 s, audio priority with telemetry fairness, retry, and post-recovery drain. A 30 s AP outage trial reconnected and resumed 200 responses; the app fault/stale state was verified separately.
 
-This is a multi-stage firmware port; it cannot be completed or verified in one edit without the board pinout and an AP to test against.
+The path is now implemented and hardware-verified; the port is maintained in `firmware/src/wifi_net.c` and the board/pinmap record in `docs/board-inventory.md`.
 
 ### Probe result (2026-11-13)
 
@@ -64,7 +64,17 @@ This verifies the module, wiring, reset, chip select, SPI mode, header format, c
 
 ### lwIP/DHCP status
 
-lwIP is integrated with a raw netif over RW007 `STA_ETH` frames. The module MAC is read with `MAC_GET` and used by lwIP. The board joins both `PLDT_2.4GHZ` (-50 dBm) and a PC-hosted WPA2 hotspot (-42 dBm), and receives CONNECT events. In both cases DHCP/ARP/TCP frames are transmitted but no Ethernet frames are received. Static `192.168.137.50` on the hotspot also gets no ARP reply. SPI command responses still work, so the remaining fault is the RW007 Ethernet RX/data-path delivery, not association, lwIP TX, or AP security. TLS/HTTP is implemented but unreached.
+lwIP runs as a raw netif over RW007 `STA_ETH` frames. The module MAC is read with `MAC_GET` and used by lwIP. The board joins the PC-hosted WPA2 hotspot, obtains DHCP (`192.168.137.x`), exchanges ARP/TCP, completes a pinned-CA TLS 1.2 GCM handshake, and receives `HTTP/1.1 200 OK` for telemetry and 64 KB audio windows. A Caddy terminator on port 8443 reverse-proxies to FastAPI. The earlier “no Ethernet RX” fault is resolved; the remaining audio evidence gap is the controlled acoustic source, not the network path.
+
+### Local TLS termination
+
+`tools/Caddyfile.example` is the tested shape. Install Caddy 2.x outside the repository, copy the example, point `tls` at the local certificate/key pair (the private key stays outside Git), and run:
+
+```powershell
+caddy run --config Caddyfile
+```
+
+The certificate must contain a DNS SAN (`baby-monitor.local`) and the address the client uses. The firmware pins the matching CA and negotiates TLS 1.2 `ECDHE-RSA-AES128-GCM-SHA256`; no `SECLEVEL=0` or `VERIFY_OPTIONAL` workaround is part of the final path.
 
 ## 2. FCM
 
@@ -78,8 +88,8 @@ Without those, the app uses a local notification fallback for newly observed eve
 
 ## 3. Capture-to-notification
 
-The 10 local notification trials measured API event → app notification, not microphone → Wi-Fi → backend → push. True capture-to-notification requires items 1 and 2 above plus a final audio-window upload path.
+The 10 completed trials measured API event → app local notification, not microphone → Wi-Fi → backend → push. The board audio-window upload path is now verified, but a controlled acoustic cry source is still required for true capture-to-notification trials; do not relabel the earlier trials.
 
 ## 4. Video and tagged release
 
-The demonstration video must show the physical board, the app, notification/history/controls, and a Wi-Fi failure/recovery. It should be recorded after item 1 is working. No commit, push, or tag has been made without an explicit release instruction.
+The demonstration video must show the physical board, the app, notification/history/controls, and a Wi-Fi failure/recovery. The network path and outage recovery are working; record the video with a classroom fixture and licensed prerecorded cry audio once the acoustic source is available. No release tag or push has been made without an explicit release instruction.

@@ -56,6 +56,18 @@ static uint32_t wifi_rx_frames;
 static bool wifi_connect_seen;
 static uint8_t wifi_mac[6] = {0x02, 0x52, 0x57, 0x30, 0x30, 0x31};
 static volatile SensorSnapshot latest_sensors;
+#define TELEMETRY_QUEUE_DEPTH 8U
+typedef struct {
+    SensorSnapshot sensors;
+    uint32_t sequence;
+} TelemetryItem;
+static TelemetryItem telemetry_queue[TELEMETRY_QUEUE_DEPTH];
+static uint32_t telemetry_head;
+static uint32_t telemetry_tail;
+static uint32_t telemetry_count;
+static uint32_t telemetry_dropped;
+static uint32_t telemetry_next_sequence = 6U;
+static uint32_t telemetry_last_enqueue;
 
 #if defined(HAVE_WIFI_CONFIG)
 struct join_payload {
@@ -370,7 +382,6 @@ static bool http_done;
 static uint32_t http_rx_len;
 static uint32_t http_next_attempt;
 static uint32_t http_last_done;
-static uint32_t telemetry_sequence = 6;
 static bool time_synced;
 static int64_t time_epoch;
 static uint32_t time_tick;
@@ -444,6 +455,10 @@ static bool audio_mode;
 static bool audio_pending;
 static uint32_t audio_remaining;
 static uint32_t audio_offset;
+static uint32_t audio_sequence;
+static bool last_audio_upload;
+static int http_status;
+static void audio_pump(struct altcp_pcb *pcb);
 
 
 static err_t http_recv(void *arg, struct altcp_pcb *pcb, struct pbuf *p, err_t err)
@@ -455,7 +470,24 @@ static err_t http_recv(void *arg, struct altcp_pcb *pcb, struct pbuf *p, err_t e
         http_last_done = HAL_GetTick();
         altcp_close(pcb);
         http_pcb = NULL;
-        printf("wifi: http closed rx=%lu\r\n", (unsigned long)http_rx_len);
+        if (http_status == 200) {
+            if (audio_mode) {
+                audio_capture_window_release();
+                audio_sequence++;
+                last_audio_upload = true;
+                printf("wifi: audio accepted seq=%lu\r\n", (unsigned long)(audio_sequence - 1U));
+            } else {
+                last_audio_upload = false;
+                taskENTER_CRITICAL();
+                if (telemetry_count > 0U) {
+                    telemetry_head = (telemetry_head + 1U) % TELEMETRY_QUEUE_DEPTH;
+                    telemetry_count--;
+                }
+                taskEXIT_CRITICAL();
+            }
+        }
+        printf("wifi: http closed status=%d rx=%lu\r\n",
+               http_status, (unsigned long)http_rx_len);
         return ERR_OK;
     }
     altcp_recved(pcb, p->tot_len);
@@ -465,6 +497,12 @@ static err_t http_recv(void *arg, struct altcp_pcb *pcb, struct pbuf *p, err_t e
     uint8_t chunk[128];
     uint16_t n = pbuf_copy_partial(p, chunk, sizeof(chunk) - 1, 0);
     chunk[n] = 0;
+    if (http_status == 0 && strstr((char *)chunk, "HTTP/1.") != NULL) {
+        const char *space = strchr((char *)chunk, ' ');
+        if (space != NULL) {
+            http_status = atoi(space + 1);
+        }
+    }
     printf("wifi: http %s", (char *)chunk);
     http_rx_len += p->tot_len;
     pbuf_free(p);
@@ -478,11 +516,59 @@ static err_t http_connected(void *arg, struct altcp_pcb *pcb, err_t err)
         printf("wifi: tls connect err=%d\r\n", (int)err);
         return err;
     }
+    if (audio_mode) {
+        if (!audio_capture_window_ready()) {
+            audio_mode = false;
+            return ERR_OK;
+        }
+        char captured_at[24];
+        char request[512];
+        format_captured_at(captured_at, sizeof(captured_at));
+        const unsigned int audio_bytes = (unsigned int)(audio_capture_window_length() * sizeof(int16_t));
+        int n = snprintf(request, sizeof(request),
+                 "POST /api/v1/devices/%s/audio-windows HTTP/1.1\r\n"
+                 "Host: 192.168.137.1:8443\r\n"
+                 "Authorization: Bearer %s\r\n"
+                 "Content-Type: application/octet-stream\r\n"
+                 "X-Captured-At: %s\r\n"
+                 "X-Sequence: %lu\r\n"
+                 "X-Sample-Rate-Hz: 16000\r\n"
+                 "Content-Length: %u\r\n"
+                 "Connection: close\r\n\r\n",
+                 MONITOR_DEVICE_ID, MONITOR_DEVICE_TOKEN, captured_at,
+                 (unsigned long)audio_sequence, audio_bytes);
+        if (n <= 0 || (size_t)n >= sizeof(request)) {
+            audio_mode = false;
+            return ERR_OK;
+        }
+        if (altcp_write(pcb, request, (uint16_t)n, TCP_WRITE_FLAG_COPY) != ERR_OK) {
+            audio_mode = false;
+            return ERR_OK;
+        }
+        altcp_output(pcb);
+        audio_pending = true;
+        audio_offset = 0;
+        audio_remaining = audio_bytes;
+        printf("wifi: tls audio headers sent seq=%lu bytes=%u\r\n",
+               (unsigned long)audio_sequence, audio_bytes);
+        audio_pump(pcb);
+        return ERR_OK;
+    }
     char body[512];
     char request[768];
     char metrics[320];
     char faults[128];
-    const SensorSnapshot s = latest_sensors;
+    SensorSnapshot s;
+    uint32_t sequence;
+    taskENTER_CRITICAL();
+    if (telemetry_count > 0U) {
+        s = telemetry_queue[telemetry_head].sensors;
+        sequence = telemetry_queue[telemetry_head].sequence;
+    } else {
+        s = latest_sensors;
+        sequence = telemetry_next_sequence++;
+    }
+    taskEXIT_CRITICAL();
     size_t used = 0;
     metrics[0] = 0;
     faults[0] = 0;
@@ -531,7 +617,7 @@ static err_t http_connected(void *arg, struct altcp_pcb *pcb, err_t err)
              "{\"captured_at\":\"%s\",\"sequence\":%lu,"
              "%s\"wifi_rssi_dbm\":-62,\"firmware_version\":\"rw007-tls\","
              "\"sensor_faults\":[%s]}",
-             captured_at, (unsigned long)telemetry_sequence, metrics, faults);
+             captured_at, (unsigned long)sequence, metrics, faults);
 #ifdef MONITOR_DEVICE_TOKEN
     snprintf(request, sizeof(request),
              "POST /api/v1/devices/%s/telemetry HTTP/1.1\r\n"
@@ -592,16 +678,15 @@ static void audio_pump(struct altcp_pcb *pcb)
     }
     if (audio_remaining == 0) {
         audio_pending = false;
-        if (real) {
-            audio_capture_window_release();
-        }
         printf("wifi: audio body sent, waiting response\r\n");
     }
 }
 
 static void http_start(void)
 {
-    audio_mode = audio_capture_window_ready();
+    http_status = 0;
+    audio_mode = audio_capture_window_ready() && !last_audio_upload &&
+                 telemetry_count < TELEMETRY_QUEUE_DEPTH;
     ip4_addr_t server;
     IP4_ADDR(&server, 192, 168, 137, 1);
     if (tls_config == NULL) {
@@ -689,6 +774,22 @@ static void wifi_poll(void)
 void wifi_net_publish_sensors(const SensorSnapshot *snapshot)
 {
     latest_sensors = *snapshot;
+    const uint32_t now = HAL_GetTick();
+    if (telemetry_count > 0U && (now - telemetry_last_enqueue) < 5000U) {
+        return;
+    }
+    telemetry_last_enqueue = now;
+    taskENTER_CRITICAL();
+    if (telemetry_count >= TELEMETRY_QUEUE_DEPTH) {
+        telemetry_head = (telemetry_head + 1U) % TELEMETRY_QUEUE_DEPTH;
+        telemetry_count--;
+        telemetry_dropped++;
+    }
+    telemetry_queue[telemetry_tail].sensors = *snapshot;
+    telemetry_queue[telemetry_tail].sequence = telemetry_next_sequence++;
+    telemetry_tail = (telemetry_tail + 1U) % TELEMETRY_QUEUE_DEPTH;
+    telemetry_count++;
+    taskEXIT_CRITICAL();
 }
 
 void wifi_net_run(void)
@@ -720,33 +821,37 @@ void wifi_net_run(void)
             printf("wifi: sta mode result=%ld\r\n", (long)mode_result);
         }
         HAL_Delay(500);
-        bool sent = false;
-        for (int i = 0; i < 6 && !sent; i++) {
-            sent = send_cmd(7, &join, sizeof(join));
-            if (!sent) {
+        int32_t result = -1;
+        for (int attempt = 0; attempt < 3 && !wifi_connect_seen; attempt++) {
+            bool sent = false;
+            for (int i = 0; i < 4 && !sent; i++) {
+                sent = send_cmd(7, &join, sizeof(join));
+                if (!sent) {
+                    HAL_Delay(500);
+                }
+            }
+            if (sent && wait_resp(7, 10000, &result) && result == 0) {
+                wifi_joined = true;
+                printf("wifi: join accepted %s (attempt %d)\r\n",
+                       MONITOR_WIFI_SSID, attempt + 1);
+            }
+            for (int i = 0; i < 50 && !wifi_connect_seen; i++) {
+                uint8_t discard[8 + 1600];
+                uint32_t type = 0;
+                uint16_t len = sizeof(discard);
+                if (fetch_packet(discard, &len, &type) && type == DATA_TYPE_CB &&
+                    len >= 1U && discard[0] == 1U) {
+                    wifi_connect_seen = true;
+                }
+                HAL_Delay(100);
+            }
+            if (!wifi_connect_seen) {
                 HAL_Delay(500);
             }
-        }
-        int32_t result = -1;
-        if (sent && wait_resp(7, 15000, &result) && result == 0) {
-            wifi_joined = true;
-            printf("wifi: join accepted %s\r\n", MONITOR_WIFI_SSID);
-        } else {
-            printf("wifi: join failed (%ld)\r\n", (long)result);
         }
     }
 
     if (wifi_joined) {
-        for (int i = 0; i < 50 && !wifi_connect_seen; i++) {
-            uint8_t discard[8 + 1600];
-            uint32_t type = 0;
-            uint16_t len = sizeof(discard);
-            if (fetch_packet(discard, &len, &type) && type == DATA_TYPE_CB &&
-                len >= 1U && discard[0] == 1U) {
-                wifi_connect_seen = true;
-            }
-            HAL_Delay(100);
-        }
         printf("wifi: connect event=%d\r\n", wifi_connect_seen ? 1 : 0);
         uint32_t promisc = 1;
         int32_t promisc_result = -1;
@@ -794,11 +899,11 @@ void wifi_net_run(void)
             if (bound && !http_started && !http_done) {
                 http_start();
             } else if (bound && http_done &&
-                       (HAL_GetTick() - http_last_done) >= 5000U) {
+                       (HAL_GetTick() - http_last_done) >=
+                           (telemetry_count > 4U ? 1000U : 5000U)) {
                 http_done = false;
                 http_started = false;
                 http_rx_len = 0;
-                telemetry_sequence++;
                 audio_mode = false;
             } else if (bound && http_started && !http_done && !audio_mode &&
                        http_rx_len == 0 && (int32_t)(HAL_GetTick() - http_next_attempt) >= 0) {
@@ -812,10 +917,12 @@ void wifi_net_run(void)
         const uint32_t now = HAL_GetTick();
         if (wifi_joined && now - last_print >= 1000U) {
             last_print = now;
-            printf("wifi: ip=%s tx=%lu rx=%lu\r\n",
+            printf("wifi: ip=%s tx=%lu rx=%lu q=%lu dropped=%lu\r\n",
                    ip4addr_ntoa(&wifi_netif.ip_addr),
                    (unsigned long)wifi_tx_frames,
-                   (unsigned long)wifi_rx_frames);
+                   (unsigned long)wifi_rx_frames,
+                   (unsigned long)telemetry_count,
+                   (unsigned long)telemetry_dropped);
         }
         vTaskDelay(pdMS_TO_TICKS(10U));
     }

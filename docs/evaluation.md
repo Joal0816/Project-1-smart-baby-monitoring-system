@@ -89,6 +89,18 @@ Using FastAPI's test client with the real ML classifier and a temporary SQLite d
 
 FCM was skipped because no Firebase service account/project is configured. This verifies the audio endpoint, classifier adapter, persistence, and event creation; it is not yet the required 10 notification trials or the 20/20 held-out evaluation.
 
+## Board TLS and audio transport evidence (2026-11-13)
+
+| Check | Result |
+|---|---|
+| TLS terminator | Caddy 2.11.9 on the PC, certificate for `baby-monitor.local`, reverse proxy to FastAPI on `127.0.0.1:8000`. |
+| Cipher | `openssl s_client` and the board negotiated TLS 1.2 `ECDHE-RSA-AES128-GCM-SHA256`; certificate verification returned 0 (ok). |
+| Board request | RW007 + mbedTLS + pinned CA sent telemetry and received `HTTP/1.1 200 OK`; no `SECLEVEL=0` override is used. |
+| Audio POST | With the activity gate temporarily lowered to RMS 100 for transport testing, the board captured and uploaded three consecutive 64,000-byte windows (sequences 0–2); each received `HTTP/1.1 200 OK`, and the backend recorded the latest status as `background` (no cry event). The production gate was restored to RMS 800 afterward. |
+| Failure behavior | On a 30 s AP outage the board retained a bounded 8-slot telemetry queue; after reconnecting it drained the queue (`q=6`, `dropped=6`) and resumed authenticated 200 responses. |
+
+This proves the end-to-end transport, authentication, audio framing, backend classifier call, and queue recovery. It does **not** prove that the current classroom microphone input can trigger on a cry; controlled cry capture-to-notification remains outstanding.
+
 ## Safe test method
 
 Use a classroom fixture and prerecorded audio with recorded source/license details. Do not attach electronics/cables to an infant or place them in a sleep space. Do not describe the prototype as a medical or safety device.
@@ -99,8 +111,8 @@ Use a classroom fixture and prerecorded audio with recorded source/license detai
 |---|---|---|
 | Cry precision / recall / F1 | Test @0.05: 1.000 / 0.850 / 0.919; test @0.35: 1.000 / 0.800 / 0.889 | 20 unseen cry + 20 unseen non-cry ESC-50 clips, source-disjoint. See `docs/ml-evaluation.md`. |
 | False alerts / missed cries | 0 false positives; 3 FN @0.05, 4 FN @0.35 | Misses: `1-211527-B-20`, `2-107351-A-20`, `2-66637-A-20`; `1-187207-A-20` also missed at 0.35. |
-| Capture-to-notification latency | 10/10 local notifications delivered; API-event-to-app notification: min 5.38 s, median 14.18 s, p95 14.6 s, max 14.93 s | App polls every 15 s; this is not capture-to-notification and not FCM. Capture-to-push latency remains TBD. |
+| Capture-to-notification latency | 10/10 local notifications delivered; API-event-to-app notification: min 5.38 s, median 14.18 s, p95 14.6 s, max 14.93 s | App polls every 15 s; this is not capture-to-notification and not FCM. Board audio upload is verified, but controlled cry capture-to-notification remains TBD. |
 | FreeRTOS heap / minimum stack | 15,592 B free of 24,576 B; stack high-water 96/234/489/233/125 words (Sensors/Audio/Network/LocalUI/Health) | Five tasks; 1 Hz sensor/health logging plus 16 kHz audio DMA and a 2 s mono window buffer (94,180 B static RAM total); 168 MHz HSE/PLL build. Worst-case latency and longer-run soak pending. |
 | Worst observed task latency | TBD | Include measurement method |
-| Wi-Fi recovery and queued events | TBD | Hardware trial required |
+| Wi-Fi recovery and queued events | 30 s AP outage: board retained a bounded queue and resumed 200 responses after reconnect; `q=6`, `dropped=6` | Single trial; no app screenshot captured during this run; audio-event queueing still requires controlled cry input |
 | Android runtime | Dashboard, History, acknowledgement and fault state verified on API 35 emulator | Search, stale transition, API error, large text, dark theme, reduced motion, restart/rotation, FCM delivery pending. |

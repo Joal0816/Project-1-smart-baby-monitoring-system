@@ -16,7 +16,7 @@ flowchart LR
   A -->|acknowledgement| B
 ```
 
-The onboard RW007 transport joins a 2.4 GHz AP, obtains DHCP, and posts real sensor telemetry every ~5 s over TLS 1.2 with a pinned local CA. An authenticated 64 KB audio-window POST was accepted by the backend. The local test uses a PC-hosted hotspot and a loopback TLS terminator; real audio capture gating, time sync, and production TLS termination remain gaps.
+The onboard RW007 transport joins a 2.4 GHz AP, obtains DHCP, and posts real sensor telemetry over TLS 1.2 using ECDHE-RSA-AES128-GCM-SHA256 with a pinned local CA. A Caddy terminator reverse-proxies HTTPS to FastAPI; the board’s authenticated 64 KB audio-window POST is accepted by the backend. The firmware has a bounded telemetry queue and post-recovery drain; a 30 s AP outage trial reconnected and drained without losing an accepted event. Controlled cry capture-to-notification remains the main hardware evidence gap.
 
 ## 3. Component inventory
 
@@ -29,7 +29,7 @@ The onboard RW007 transport joins a 2.4 GHz AP, obtains DHCP, and posts real sen
 | AP3216C light/proximity | Soft I²C2, PF0/PF1, address 0x1E |
 | ICM20608 accelerometer/gyro | Same I²C2 bus, address 0x68, `WHO_AM_I=0xAF` |
 | ES8388 + 3.5 mm microphone | Codec at 0x10; I2S3 master, I2S3ext RX, DMA1 |
-| RW007 Wi-Fi | SPI link, Wi-Fi join, DHCP, TLS 1.2 with pinned CA, real sensor telemetry, and 64 KB audio-window POST verified; production TLS/audio gating pending |
+| RW007 Wi-Fi | SPI link, Wi-Fi join, DHCP, pinned-CA TLS 1.2 AES-GCM, real sensor telemetry, 64 KB audio-window POST, and bounded outage queue verified; controlled cry capture-to-notification pending |
 | ST7789 LCD, buttons, buzzer | Pins/control not yet implemented |
 | Android phone/emulator | API 35 emulator; APK connected to local backend |
 

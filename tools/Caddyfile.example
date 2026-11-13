@@ -1,0 +1,4 @@
+:8443 {
+	tls "C:/path/to/local-tls/server.crt" "C:/path/to/local-tls/server.key"
+	reverse_proxy 127.0.0.1:8000
+}
