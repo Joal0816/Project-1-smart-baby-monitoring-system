@@ -12,7 +12,7 @@ An RT-Spark STM32F407 board is available and connected. The official Spark-1 BSP
 | Display, LEDs, buttons, buzzer | Local readings, status, acknowledge/mute/test | Red LED PF12 visually confirmed blinking at 1 Hz; blue LED PF11 documented and active-low; ST7789 240×240 via FSMC; KEY0 on PC0; buzzer mapping not yet extracted | Pin table and individual HAL test |
 | RTC, flash, TF storage | Time and outage metadata queue | Present per BSP; untested | Capacity, driver, persistence/recovery test |
 | ES8388 audio codec | Audio capture front end; external microphone input | Configured at `0x10` on soft I²C2; I2S3 master + I2S3ext RX + DMA streams 16 kHz stereo PCM16. Measured half-buffer period 15.7 ms for 512 samples. 64,000-byte window upload and backend classification verified; current ambient input does not reach the RMS 800 gate | Controlled cry/acoustic source and gate calibration pending |
-| External microphone | Required audio capture | 3.5 mm microphone connected to CN3 (PJ-320A); live signal captured and activity-gated | Module details/licence and controlled cry test pending |
+| External microphone | Required audio capture | 3.5 mm device connected to CN3 (PJ-320A); capture buffer and DMA run, but dumped windows during cry playback were noise-like (RMS 216, 11,939 zero crossings) and classified background | Verify microphone model, bias/contact, and a controlled cry source; do not claim live cry capture yet |
 
 ## Pin map (verified or documented)
 
