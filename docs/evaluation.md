@@ -99,7 +99,7 @@ FCM was skipped because no Firebase service account/project is configured. This 
 | Audio POST | With the activity gate temporarily lowered to RMS 100 for transport testing, the board captured and uploaded three consecutive 64,000-byte windows (sequences 0–2); each received `HTTP/1.1 200 OK`, and the backend recorded the latest status as `background` (no cry event). The production gate was restored to RMS 800 afterward. |
 | Failure behavior | On a 30 s AP outage the board retained a bounded 8-slot telemetry queue; after reconnecting it drained the queue (`q=6`, `dropped=6`) and resumed authenticated 200 responses. |
 
-This proves the end-to-end transport, authentication, audio framing, backend classifier call, and queue recovery. It does **not** prove that the current classroom microphone input can trigger on a cry; controlled cry capture-to-notification remains outstanding.
+This proves the end-to-end transport, authentication, audio framing, backend classifier call, and queue recovery. It does **not** prove that the current classroom microphone input can trigger on a cry; controlled cry capture-to-notification remains outstanding. A temporary dump of a window captured during loud cry playback measured RMS 216, peak 1,521, and 11,939 zero crossings (source cry window: RMS 3,624, peak 23,483, 8,939 crossings); the backend classified the captured window as `background` at 0.20837. That points to the microphone/acoustic input chain, not the upload or classifier.
 
 ## Safe test method
 

@@ -76,6 +76,10 @@ BUILD SUCCESSFUL in 5m 34s
 
 The APK built against local JDK 17 and Android SDK. The app was previously exercised on the API 35 emulator for live readings, History/search, acknowledgement, dark theme, 1.5× text, landscape, API-error, stale/offline, reduced motion, and local notification. Ten API-event-to-app notification trials delivered 10/10 (median 14.18 s); these are not capture-to-notification trials. FCM is not configured.
 
+## Audio diagnostic
+
+A temporary RAM dump of the 2 s window after loud cry playback measured RMS 216, peak 1,521, and 11,939 zero crossings; the backend classified it as `background` at 0.20837. The source ESC-50 cry window measures RMS 3,624, peak 23,483, and 8,939 zero crossings. The mismatch is in the microphone/acoustic input chain, not the TLS upload or classifier adapter.
+
 ## Not yet evidenced
 
 - Controlled acoustic cry input triggering the RMS-800 gate and 10 microphone-to-app trials.
