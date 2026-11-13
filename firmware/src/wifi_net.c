@@ -444,7 +444,7 @@ static bool audio_mode;
 static bool audio_pending;
 static uint32_t audio_remaining;
 static uint32_t audio_offset;
-static uint8_t audio_zero[1024];
+
 
 static err_t http_recv(void *arg, struct altcp_pcb *pcb, struct pbuf *p, err_t err)
 {
@@ -570,6 +570,10 @@ static void audio_pump(struct altcp_pcb *pcb)
     }
     const bool real = audio_capture_window_ready();
     const uint8_t *window = real ? (const uint8_t *)audio_capture_window_data() : NULL;
+    if (!real) {
+        audio_pending = false;
+        return;
+    }
     while (audio_remaining > 0) {
         uint16_t space = altcp_sndbuf(pcb);
         if (space < 256) {
@@ -578,7 +582,7 @@ static void audio_pump(struct altcp_pcb *pcb)
         uint16_t n = 1024;
         if (n > space) n = space;
         if (n > audio_remaining) n = (uint16_t)audio_remaining;
-        const uint8_t *src = real ? &window[audio_offset] : audio_zero;
+        const uint8_t *src = &window[audio_offset];
         if (altcp_write(pcb, src, n, TCP_WRITE_FLAG_COPY) != ERR_OK) {
             break;
         }
@@ -597,6 +601,7 @@ static void audio_pump(struct altcp_pcb *pcb)
 
 static void http_start(void)
 {
+    audio_mode = audio_capture_window_ready();
     ip4_addr_t server;
     IP4_ADDR(&server, 192, 168, 137, 1);
     if (tls_config == NULL) {
@@ -794,6 +799,7 @@ void wifi_net_run(void)
                 http_started = false;
                 http_rx_len = 0;
                 telemetry_sequence++;
+                audio_mode = false;
             } else if (bound && http_started && !http_done && !audio_mode &&
                        http_rx_len == 0 && (int32_t)(HAL_GetTick() - http_next_attempt) >= 0) {
                 if (http_pcb != NULL) {
