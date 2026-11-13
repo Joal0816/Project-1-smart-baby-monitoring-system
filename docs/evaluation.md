@@ -70,7 +70,7 @@ These are three ESC-50 crying-baby clips (CC BY-NC 3.0), downloaded outside git.
 - History displayed a `Likely baby cry detected` event at 92 % confidence plus temperature/humidity range events; `Mark reviewed` changed the cry event to `Reviewed`.
 - Search filtered History to the cry event.
 - Dark theme rendered correctly; 1.5× font scale was tested and a header/status-pill overlap was fixed by stacking the pill below the title.
-- A local notification (`Possible baby cry`, confidence detail) was delivered for newly observed cry events through the app's polling fallback; FCM remote push remains unconfigured.
+- A fresh direct API cry window (`esc50-cry-window.bin`, 0.92954, event `b80c5279-4985-4493-8593-263ca0636513`) produced the app’s `CRY ALERT · REVIEW` card and a local notification (`Likely baby cry detected · model confidence 93%`). This confirms the backend-to-app alert UI and local fallback; it is still API-to-app, not microphone-to-app.
 - Ten sequential notification trials delivered **10/10** notifications. API-event-to-local-notification latency: min 5.38 s, median 14.18 s, p95 14.6 s, max 14.93 s. The 15 s app poll interval dominates; this is **not** capture-to-notification latency and not an FCM push trial.
 - Landscape rotation rendered correctly; API-error state showed `Update failed` while retaining the last readings.
 - After stopping the telemetry bridge for more than 120 s, the app showed `Offline`, `Data stale`, `Last update · 2 min ago`, and `Audio result is out of date`. The `safeDrawing` inset fix keeps content below the system status bar.
