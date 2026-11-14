@@ -22,6 +22,17 @@ volatile MonitorDiagnostics g_monitor_diagnostics;
 
 enum { TASK_SENSOR = 0, TASK_AUDIO, TASK_NETWORK, TASK_LOCAL_UI, TASK_HEALTH };
 
+static void record_wake_delay(size_t task, TickType_t scheduled)
+{
+    const TickType_t now = xTaskGetTickCount();
+    if (now > scheduled) {
+        const uint32_t delay_ms = (uint32_t)(((now - scheduled) * 1000U) / configTICK_RATE_HZ);
+        if (delay_ms > g_monitor_diagnostics.max_task_wake_delay_ms[task]) {
+            g_monitor_diagnostics.max_task_wake_delay_ms[task] = delay_ms;
+        }
+    }
+}
+
 void monitor_assert_failed(const char *file, unsigned line)
 {
     (void)file;
@@ -49,6 +60,7 @@ static void SensorTask(void *argument)
     TickType_t wake_time = xTaskGetTickCount();
     uint32_t sequence = 0U;
     for (;;) {
+        record_wake_delay(TASK_SENSOR, wake_time);
         SensorSnapshot snapshot;
         sensors_read(&snapshot);
         wifi_net_publish_sensors(&snapshot);
@@ -73,9 +85,11 @@ static void AudioTask(void *argument)
 {
     (void)argument;
     audio_capture_init();
+    TickType_t wake_time = xTaskGetTickCount();
     for (;;) {
+        record_wake_delay(TASK_AUDIO, wake_time);
         audio_capture_poll();
-        vTaskDelay(pdMS_TO_TICKS(5U));
+        vTaskDelayUntil(&wake_time, pdMS_TO_TICKS(5U));
     }
 }
 
@@ -88,17 +102,21 @@ static void NetworkTask(void *argument)
 static void LocalUiTask(void *argument)
 {
     (void)argument;
+    TickType_t wake_time = xTaskGetTickCount();
     for (;;) {
+        record_wake_delay(TASK_LOCAL_UI, wake_time);
         /* PF12 is the verified onboard red LED; display, buzzer, and buttons stay inactive. */
         board_led_toggle();
-        vTaskDelay(pdMS_TO_TICKS(500U));
+        vTaskDelayUntil(&wake_time, pdMS_TO_TICKS(500U));
     }
 }
 
 static void HealthTask(void *argument)
 {
     (void)argument;
+    TickType_t wake_time = xTaskGetTickCount();
     for (;;) {
+        record_wake_delay(TASK_HEALTH, wake_time);
         g_monitor_diagnostics.minimum_free_heap = xPortGetMinimumEverFreeHeapSize();
         for (size_t index = 0U; index < 5U; ++index) {
             if (task_handles[index] != NULL) {
@@ -106,15 +124,20 @@ static void HealthTask(void *argument)
                     uxTaskGetStackHighWaterMark(task_handles[index]);
             }
         }
-        printf("health: heartbeats=%lu heap_min=%lu stacks=%lu/%lu/%lu/%lu/%lu\r\n",
+        printf("health: heartbeats=%lu heap_min=%lu stacks=%lu/%lu/%lu/%lu/%lu wake_ms=%lu/%lu/%lu/%lu/%lu\r\n",
                (unsigned long)g_monitor_diagnostics.sensor_heartbeats,
                (unsigned long)g_monitor_diagnostics.minimum_free_heap,
                (unsigned long)g_monitor_diagnostics.stack_high_water_words[TASK_SENSOR],
                (unsigned long)g_monitor_diagnostics.stack_high_water_words[TASK_AUDIO],
                (unsigned long)g_monitor_diagnostics.stack_high_water_words[TASK_NETWORK],
                (unsigned long)g_monitor_diagnostics.stack_high_water_words[TASK_LOCAL_UI],
-               (unsigned long)g_monitor_diagnostics.stack_high_water_words[TASK_HEALTH]);
-        vTaskDelay(pdMS_TO_TICKS(1000U));
+               (unsigned long)g_monitor_diagnostics.stack_high_water_words[TASK_HEALTH],
+               (unsigned long)g_monitor_diagnostics.max_task_wake_delay_ms[TASK_SENSOR],
+               (unsigned long)g_monitor_diagnostics.max_task_wake_delay_ms[TASK_AUDIO],
+               (unsigned long)g_monitor_diagnostics.max_task_wake_delay_ms[TASK_NETWORK],
+               (unsigned long)g_monitor_diagnostics.max_task_wake_delay_ms[TASK_LOCAL_UI],
+               (unsigned long)g_monitor_diagnostics.max_task_wake_delay_ms[TASK_HEALTH]);
+        vTaskDelayUntil(&wake_time, pdMS_TO_TICKS(1000U));
     }
 }
 

@@ -13,6 +13,8 @@ typedef struct {
     uint32_t hardware_unverified;
     uint32_t minimum_free_heap;
     uint32_t stack_high_water_words[5];
+    /* Scheduling delay from a task's intended wake tick to its first instruction. */
+    uint32_t max_task_wake_delay_ms[5];
 } MonitorDiagnostics;
 
 extern volatile MonitorDiagnostics g_monitor_diagnostics;

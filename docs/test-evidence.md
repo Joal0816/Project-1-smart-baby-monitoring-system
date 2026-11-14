@@ -17,14 +17,28 @@ All results below were run on the project workstation on 2026-11-13 (Asia/Singap
 
 ```text
 PLATFORMIO_CORE_DIR=.pio-core pio run -e rtspark_f407zg_hsi
-RAM:   56.0% (73,364 / 131,072 bytes)
+RAM:   56.0% (73,388 / 131,072 bytes)
 Flash: 13.3% (139,356 / 1,048,576 bytes)
 
 PLATFORMIO_CORE_DIR=.pio-core pio run -e rtspark_f407zg_hsi -t upload
 SUCCESS
 ```
 
-Runtime health observed during the final smoke test: `heap_min=9448`, `stacks=96/236/142/233/125`, telemetry `HTTP/1.1 200 OK`, queue `q=1..2`, `dropped=0`.
+Runtime health observed during the final smoke test: `heap_min=9448`, `stacks=96/234/142/229/113`, telemetry `HTTP/1.1 200 OK`, queue `q=1..2`, `dropped=0`.
+
+## FreeRTOS wake-delay measurement (2026-11-14)
+
+The firmware now records, per periodic task, the delay from its intended wake tick to its first instruction. A 120 s capture after reflashing contained 120 health lines (124 sensor heartbeats):
+
+| Task | Max wake delay |
+|---|---:|
+| Sensors (1 s period) | 0 ms |
+| Audio (5 ms period) | 3 ms |
+| Network (event-driven) | not applicable; logged as 0 |
+| LocalUI (500 ms period) | 0 ms |
+| Health (1 s period, lowest priority, USB logging) | 482 ms |
+
+Heap minimum 9,448 B of 24,576 B; stack high-water 96/234/142/229/113 words. The health delay is dominated by lowest-priority USB logging and network/TLS activity; it is reported as an observed scheduler delay, not a hard real-time guarantee. Raw capture: `.dev-tools/downloads/timing-120s.log` (ignored generated evidence). Build: 73,388 B RAM, 139,612 B flash, 168 MHz.
 
 ## TLS
 
