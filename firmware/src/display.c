@@ -158,6 +158,48 @@ static void render_network(const SensorSnapshot *snapshot, bool wifi_up,
     lcd_line(202, COLOR_GRAY, "K2 PAGE  WKUP BEEP");
 }
 
+
+static uint16_t rgb565(uint8_t red, uint8_t green, uint8_t blue)
+{
+    return (uint16_t)(((uint16_t)(red & 0xF8U) << 8U) |
+                      ((uint16_t)(green & 0xFCU) << 3U) |
+                      (uint16_t)(blue >> 3U));
+}
+
+static void render_audio_visualizer(uint32_t audio_rms, uint32_t audio_frequency_hz)
+{
+    uint8_t red = 0U;
+    uint8_t green = 0U;
+    uint8_t blue = 0U;
+    if (audio_frequency_hz < 800U) {
+        red = 255U;
+    } else if (audio_frequency_hz < 1200U) {
+        red = 255U;
+        green = 255U;
+    } else {
+        blue = 255U;
+    }
+
+    uint32_t level = audio_rms * 3U;
+    if (level > 255U) level = 255U;
+    if (level < 24U) level = 24U;
+    red = (uint8_t)((red * level) / 255U);
+    green = (uint8_t)((green * level) / 255U);
+    blue = (uint8_t)((blue * level) / 255U);
+
+    char line[32];
+    lcd_fill_rect(0, 0, DISPLAY_WIDTH - 1U, DISPLAY_HEIGHT - 1U, COLOR_BG);
+    lcd_line(4, COLOR_CYAN, "SOUND COLOUR");
+    lcd_fill_rect(20, 32, 219, 190, rgb565(red, green, blue));
+    snprintf(line, sizeof(line), "FREQ %lu HZ", (unsigned long)audio_frequency_hz);
+    lcd_line(198, COLOR_WHITE, line);
+    const uint32_t bar = (audio_rms > 70U) ? 220U : (audio_rms * 3U);
+    lcd_fill_rect(20, 224, 219, 233, COLOR_GRAY);
+    if (bar > 0U) {
+        lcd_fill_rect(20, 224, 20U + (uint16_t)bar, 233, COLOR_GREEN);
+    }
+}
+
 static void render_controls(void)
 {
     lcd_line(4, COLOR_CYAN, "CONTROLS");
@@ -300,6 +342,8 @@ void display_render(const SensorSnapshot *snapshot, bool wifi_up,
         render_network(snapshot, wifi_up, ip);
     } else if (page == 2U) {
         render_controls();
+    } else if (page == 3U) {
+        render_audio_visualizer(audio_rms, audio_frequency_hz);
     } else {
         render_status(snapshot, wifi_up, ip, cry_alert, muted,
                       audio_rms, audio_frequency_hz);

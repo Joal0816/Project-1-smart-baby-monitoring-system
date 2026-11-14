@@ -70,7 +70,7 @@ static void read_button(Button *button, uint32_t now, uint8_t index)
             printf("ui: key1 mute=%u\r\n", muted ? 1U : 0U);
             break;
         case 2:
-            page = (uint8_t)((page + 1U) % 3U);
+            page = (uint8_t)((page + 1U) % 4U);
             printf("ui: key2 page=%u\r\n", page);
             break;
         default:
@@ -171,11 +171,13 @@ void monitor_ui_step(const SensorSnapshot *snapshot)
         HAL_GPIO_WritePin(BUZZER_PORT, BUZZER_PIN, GPIO_PIN_RESET);
     }
 
-    if (alert != last_alert || page != last_page || (now - last_render) >= 1000U) {
+    const uint8_t render_page = (page == 0U && audio_active) ? 3U : page;
+    if (alert != last_alert || render_page != last_page ||
+        (now - last_render) >= 1000U) {
         display_render(snapshot, wifi_net_connected(), wifi_net_ip(),
-                       alert, muted, page, audio_rms, audio_frequency_hz);
+                       alert, muted, render_page, audio_rms, audio_frequency_hz);
         last_alert = alert;
-        last_page = page;
+        last_page = render_page;
         last_render = now;
     }
 }
