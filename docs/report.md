@@ -29,9 +29,9 @@ The onboard RW007 transport joins a 2.4 GHz AP, obtains DHCP, and posts real sen
 | AP3216C light/proximity | Soft I²C2, PF0/PF1, address 0x1E |
 | ICM20608 accelerometer/gyro | Same I²C2 bus, address 0x68, `WHO_AM_I=0xAF` |
 | ES8388 + 3.5 mm microphone | Codec at 0x10; I2S3 master, I2S3ext RX, DMA1 |
-| RW007 Wi-Fi | SPI link, Wi-Fi join, DHCP, pinned-CA TLS 1.2 AES-GCM, real sensor telemetry, 64 KB audio-window POST, bounded outage queue, and ten microphone-to-app trials verified; FCM/video pending |
+| RW007 Wi-Fi | SPI link, Wi-Fi join, DHCP, pinned-CA TLS 1.2 AES-GCM, real sensor telemetry, 64 KB audio-window POST, bounded outage queue, ten microphone-to-app trials, and ten FCM delivery trials verified; video pending |
 | ST7789 LCD, buttons, buzzer | Pins/control not yet implemented |
-| Android phone/emulator | API 35 emulator; APK connected to local backend |
+| Android phone/emulator | API 35 emulator; APK connected to local backend; FCM push verified 10/10 |
 
 ## 4. Firmware design
 
@@ -91,4 +91,4 @@ Latest measured build: 73,364 B of 131,072 B main SRAM (plus the 64 KiB CCM audi
 
 The prototype now demonstrates the complete local service path: STM32Cube/FreeRTOS firmware reads the onboard sensors and microphone, RW007 joins Wi-Fi and obtains DHCP, mbedTLS verifies a pinned CA and negotiates TLS 1.2 AES-GCM, Caddy terminates HTTPS, FastAPI stores readings/events and runs YAMNet, and the Android app shows live state, history, acknowledgement, and local cry notifications. The classifier has a reproducible held-out evaluation, and the firmware upload, outage queue, and Android build have direct evidence.
 
-The capture-to-notification path is now verified with ten real onboard-microphone trials and ten local Android notifications. Remaining work is FCM delivery, display/buttons/buzzer, and the demonstration video. The prototype is educational and is not a medical or safety-certified monitor.
+The capture-to-notification path is now verified with ten real onboard-microphone trials and ten local Android notifications. Remaining work is display/buttons/buzzer and the demonstration video. The prototype is educational and is not a medical or safety-certified monitor.

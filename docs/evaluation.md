@@ -76,7 +76,7 @@ These are three ESC-50 crying-baby clips (CC BY-NC 3.0), downloaded outside git.
 - After stopping the telemetry bridge for more than 120 s, the app showed `Offline`, `Data stale`, `Last update · 2 min ago`, and `Audio result is out of date`. The `safeDrawing` inset fix keeps content below the system status bar.
 - Reduced-motion check: system animation scales set to 0; the app still rendered and remained usable.
 - The serial bridge was deliberately disrupted by the ST-Link VCP disappearing; it auto-detected the reappearing COM7 port and resumed posting without a restart.
-- Remaining: real FCM notification delivery.
+- FCM notification delivery: ten backend events produced ten delivered notifications (`push_sent=1` and ten distinct `dumpsys` titles) with locally configured Firebase credentials. See `docs/fcm-setup.md`.
 
 ## Backend audio path test (real YAMNet)
 
@@ -87,7 +87,7 @@ Using FastAPI's test client with the real ML classifier and a temporary SQLite d
 | Live mic window, 64,000 bytes | 200, `background`, confidence 0.00248 | None |
 | ESC-50 cry window, 64,000 bytes | 200, `baby_crying`, confidence 0.92954, confirmed | Persisted `cry` event, `push_sent=0` |
 
-FCM was skipped because no Firebase service account/project is configured. This verifies the audio endpoint, classifier adapter, persistence, and event creation; it is not yet the required 10 notification trials or the 20/20 held-out evaluation.
+This verifies the audio endpoint, classifier adapter, persistence, and event creation. It is not the 20/20 held-out evaluation. FCM is now configured locally and separately verified with ten delivered notifications.
 
 ## Board TLS and audio transport evidence (2026-11-13)
 
@@ -99,7 +99,7 @@ FCM was skipped because no Firebase service account/project is configured. This 
 | Audio POST | With the activity gate temporarily lowered to RMS 100 for transport testing, the board captured and uploaded three consecutive 64,000-byte windows (sequences 0–2); each received `HTTP/1.1 200 OK`, and the backend recorded the latest status as `background` (no cry event). The production gate was restored to RMS 800 afterward. |
 | Failure behavior | On a 30 s AP outage the board retained a bounded 8-slot telemetry queue; after reconnecting it drained the queue (`q=6`, `dropped=6`) and resumed authenticated 200 responses. |
 
-This proves the end-to-end transport, authentication, audio framing, backend classifier call, and queue recovery. Clearing the ES8388 `ADCCONTROL3` ASDOUT tri-state and using I2S 16-bit format also produced real onboard-microphone windows. Ten current-firmware microphone-to-App trials are recorded in `docs/test-evidence.md`: 10/10 local notifications delivered, capture-to-notification min 1.166 s, median 6.2705 s, mean 7.211 s, p95/max 15.815 s. FCM was not configured; the notifications use the app's 15 s polling fallback.
+This proves the end-to-end transport, authentication, audio framing, backend classifier call, and queue recovery. Clearing the ES8388 `ADCCONTROL3` ASDOUT tri-state and using I2S 16-bit format also produced real onboard-microphone windows. Ten current-firmware microphone-to-App trials are recorded in `docs/test-evidence.md`: 10/10 local notifications delivered, capture-to-notification min 1.166 s, median 6.2705 s, mean 7.211 s, p95/max 15.815 s. The notifications in that ten-trial set use the app's 15 s polling fallback; FCM delivery was verified separately with ten backend events (`docs/fcm-setup.md`).
 
 ## Safe test method
 
@@ -111,8 +111,8 @@ Use a classroom fixture and prerecorded audio with recorded source/license detai
 |---|---|---|
 | Cry precision / recall / F1 | Test @0.05: 1.000 / 0.850 / 0.919; test @0.35: 1.000 / 0.800 / 0.889 | 20 unseen cry + 20 unseen non-cry ESC-50 clips, source-disjoint. See `docs/ml-evaluation.md`. |
 | False alerts / missed cries | 0 false positives; 3 FN @0.05, 4 FN @0.35 | Misses: `1-211527-B-20`, `2-107351-A-20`, `2-66637-A-20`; `1-187207-A-20` also missed at 0.35. |
-| Capture-to-notification latency | 10/10 real microphone-to-App local notifications delivered; min 1.166 s, median 6.2705 s, mean 7.211 s, p95/max 15.815 s | Onboard electret; licensed cry source held at mic; app 15 s polling fallback; FCM not configured. See `docs/test-evidence.md`. |
+| Capture-to-notification latency | 10/10 real microphone-to-App local notifications delivered; min 1.166 s, median 6.2705 s, mean 7.211 s, p95/max 15.815 s | Onboard electret; licensed cry source held at mic; app 15 s polling fallback for this set; separate FCM delivery verified. See `docs/test-evidence.md`. |
 | FreeRTOS heap / minimum stack | 9,448 B minimum free of 24,576 B; stack high-water 96/236/142/233/125 words (Sensors/Audio/Network/LocalUI/Health) | Five tasks; latest build 73,364 B main SRAM + 64 KiB CCM audio window, 139,356 B flash; 168 MHz HSE/PLL. Worst-case latency and longer-run soak pending. |
 | Worst observed task latency | TBD | Include measurement method |
 | Wi-Fi recovery and queued events | 30 s AP outage: board retained a bounded queue and resumed 200 responses after reconnect; `q=6`, `dropped=6` | Single trial; no app screenshot captured during this run; audio-event queueing still requires controlled cry input |
-| Android runtime | Dashboard, History, acknowledgement and fault state verified on API 35 emulator | Search, stale transition, API error, large text, dark theme, reduced motion, restart/rotation, FCM delivery pending. |
+| Android runtime | Dashboard, History, acknowledgement and fault state verified on API 35 emulator | Search, stale transition, API error, large text, dark theme, reduced motion, restart/rotation, and FCM delivery verified (10/10). |

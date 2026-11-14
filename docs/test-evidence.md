@@ -97,10 +97,13 @@ The board used the verified onboard electret (LINPUT1), `ADCCONTROL3=0x00` (ASDO
 | 9 | `d7a28af0-01e5-43e3-b315-965e2ec9c598` | 0.83642 | 04:17:47 | 04:18:00.563 | 13.563 s |
 | 10 | `7582900a-1369-43a7-9056-629c9ad9f72b` | 0.66058 | 04:19:03 | 04:19:18.815 | 15.815 s |
 
-**Delivery: 10/10 local Android notifications.** Latency min 1.166 s, median 6.2705 s, mean 7.211 s, p95/max 15.815 s. Trial 8’s notification timestamp preceded the backend `created_at` by 1.2 s because the emulator/host clocks are not synchronized; the capture-to-notification value still uses the captured and notification timestamps. FCM was not configured; these are local polling notifications.
+**Delivery: 10/10 local Android notifications.** Latency min 1.166 s, median 6.2705 s, mean 7.211 s, p95/max 15.815 s. Trial 8’s notification timestamp preceded the backend `created_at` by 1.2 s because the emulator/host clocks are not synchronized; the capture-to-notification value still uses the captured and notification timestamps. These are local polling notifications; FCM is verified separately below.
+
+## FCM delivery (2026-11-14)
+
+With the local Firebase project (`little-monitor`), `google-services.json`, and a service-account key configured outside Git, the backend sent ten distinct test events. `push_sent=1` for all ten, and ten distinct `FCM delivery trial N` titles were present in `adb shell dumpsys notification`. Two API/classifier cry events also produced visible `Likely baby cry detected` FCM notifications. Full setup, event IDs, commands, and limitations: `docs/fcm-setup.md`.
 
 ## Not yet evidenced
 
-- Real FCM delivery (no service-account/project credentials).
 - Display, buttons, buzzer, and local acknowledge/mute.
 - Longer FreeRTOS latency/soak testing and a fully tagged submission.

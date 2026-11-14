@@ -78,17 +78,17 @@ The certificate must contain a DNS SAN (`baby-monitor.local`) and the address th
 
 ## 2. FCM
 
-The Android app, backend installation endpoint, and FCM service code exist. Real push requires files that are intentionally absent from Git:
+The Android app, backend installation endpoint, and FCM service code are implemented. The local Firebase project and credentials are intentionally excluded from Git:
 
 - `android/app/google-services.json` from the Firebase project.
 - `GOOGLE_APPLICATION_CREDENTIALS` service-account JSON on the backend.
 - `FIREBASE_PROJECT_ID` matching the Android project.
 
-Without those, the app uses a local notification fallback for newly observed events. The fallback was verified 10/10 with a median API-event-to-app latency of 14.18 s.
+Without those files, the app uses a local notification fallback. With them configured locally on 2026-11-14, ten backend events produced ten `push_sent=1` records and ten visible FCM notifications; see `docs/fcm-setup.md`. The local fallback remains verified 10/10 separately.
 
 ## 3. Capture-to-notification
 
-The ten current-firmware trials are true microphone → Wi-Fi → backend → local app notifications: 10/10 delivered, median 6.27 s, max 15.82 s. The earlier API-event-to-app trials remain separate and are not relabeled. FCM push is still unconfigured.
+The ten current-firmware trials are true microphone → Wi-Fi → backend → local app notifications: 10/10 delivered, median 6.27 s, max 15.82 s. The earlier API-event-to-app trials remain separate and are not relabeled.
 
 ## 4. Video and tagged release
 
