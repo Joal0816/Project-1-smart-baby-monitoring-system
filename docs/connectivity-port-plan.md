@@ -1,6 +1,6 @@
 # Connectivity Port Plan (RW007 + TLS + FCM)
 
-The RW007, lwIP, TLS, and audio-upload path are implemented and verified on hardware. The remaining evidence gap is a controlled acoustic cry source and the final capture-to-notification trials. This document records the path and the measured result so the work is reproducible rather than hidden in a stub.
+The RW007, lwIP, TLS, audio-upload, and ten-trial capture-to-notification paths are implemented and verified on hardware. This document records the path and the measured result so the work is reproducible rather than hidden in a stub.
 
 ## 1. RW007 Wi-Fi
 
@@ -88,7 +88,7 @@ Without those, the app uses a local notification fallback for newly observed eve
 
 ## 3. Capture-to-notification
 
-The 10 completed trials measured API event → app local notification, not microphone → Wi-Fi → backend → push. The board audio-window upload path is now verified, but a controlled acoustic cry source is still required for true capture-to-notification trials; do not relabel the earlier trials.
+The ten current-firmware trials are true microphone → Wi-Fi → backend → local app notifications: 10/10 delivered, median 6.27 s, max 15.82 s. The earlier API-event-to-app trials remain separate and are not relabeled. FCM push is still unconfigured.
 
 ## 4. Video and tagged release
 

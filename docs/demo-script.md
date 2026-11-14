@@ -44,6 +44,6 @@ For each trial, record this row before moving on. Use the backend event ID and t
 
 Then report min/median/p95/max and every failed delivery. Keep the raw serial logs and backend rows outside Git if they contain local network details.
 
-## Current blocker
+## Current evidence
 
-No controlled acoustic cry source is connected in the automated workstation. The firmware gate, audio framing, TLS upload, backend classifier, and queue recovery are verified; the microphone-to-app trials above still require a human-present audio fixture.
+Ten real onboard-microphone capture-to-notification trials are complete: 10/10 local Android notifications, median 6.27 s, max 15.82 s. Reuse the ten-trial table above for the final recording; FCM and the physical video remain outstanding.
