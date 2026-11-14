@@ -78,7 +78,7 @@ The APK built against local JDK 17 and Android SDK. The app was previously exerc
 
 ## Audio diagnostic
 
-The root cause was the ES8388 ADC output tri-state: `ADCCONTROL3=0x02` set `TRI=1`, leaving ASDOUT floating. Clearing it to `0x00` and using I2S 16-bit format (`ADCCONTROL4=0x0C`) produced real onboard-microphone windows. A close cry source was classified `baby_crying` at 0.91179 and created event `b9075663-d35d-43e3-846c-ec6440652fed`; the app delivered a local notification. This is the first real capture-to-notification trial; the remaining nine are still required. The source ESC-50 cry window measures RMS 3,624, peak 23,483, and 8,939 zero crossings. The mismatch is in the microphone/acoustic input chain, not the TLS upload or classifier adapter.
+The root cause was the ES8388 ADC output tri-state: `ADCCONTROL3=0x02` set `TRI=1`, leaving ASDOUT floating. Clearing it to `0x00` and using I2S 16-bit format (`ADCCONTROL4=0x0C`) produced real onboard-microphone windows. Two close cry windows were classified `baby_crying`: event `b9075663-d35d-43e3-846c-ec6440652fed` at 0.91179 (91% notification) and event `f6d0f8ad-b729-4a70-9016-8a2d54e5b5cb` at 0.95311 (95% notification). These are two real capture-to-notification trials; the remaining eight are still required. The source ESC-50 cry window measures RMS 3,624, peak 23,483, and 8,939 zero crossings. The mismatch is in the microphone/acoustic input chain, not the TLS upload or classifier adapter.
 
 ## Not yet evidenced
 
