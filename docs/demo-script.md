@@ -23,7 +23,7 @@ The video must show the real board, the backend, and the Android app together. U
 | 6. App alert | 20 s | `Possible baby cry` notification and History event with confidence. |
 | 7. Acknowledgement | 10 s | Tap `Mark reviewed`; History updates. |
 | 8. Wi-Fi loss/recovery | 30 s | Disable the hotspot; app shows offline/stale; re-enable; board reconnects and drains queued telemetry. |
-| 9. Limitations | 15 s | State missing display/buttons and that the classifier is not diagnostic; show FCM delivery if credentials are available. |
+| 9. Limitations | 15 s | State that the fixture is not a medical device, the classifier is not diagnostic, and live-motion footage is not included; show FCM delivery if credentials are available. |
 
 ## Ten-trial record
 

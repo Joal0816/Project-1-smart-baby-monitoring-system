@@ -83,13 +83,12 @@ Latest measured UI build: 74,100 B of 131,072 B main SRAM (plus the 64 KiB CCM a
 
 ## 8. Remaining or optional work
 
-1. Display/buttons/buzzer and local acknowledge/mute.
-2. Speech/music/silence confusers and a larger independent test set.
-3. Longer FreeRTOS heap/stack/timing soak and worst-case latency measurement.
-4. Live-motion physical-fixture footage. Release tag `v1.0.0-bca182` is created; the repository includes an emulator recording and a photo-based physical cut (real board photographs plus the app recording).
+1. Speech/music/silence confusers and a larger independent test set.
+2. Longer FreeRTOS heap/stack/timing soak and worst-case latency measurement.
+3. Live-motion physical-fixture footage. Release tag `v1.0.0-bca182` is created; the repository includes an emulator recording and a photo-based physical cut (real board photographs plus the app recording).
 
 ## 9. Conclusion
 
 The prototype now demonstrates the complete local service path: STM32Cube/FreeRTOS firmware reads the onboard sensors and microphone, RW007 joins Wi-Fi and obtains DHCP, mbedTLS verifies a pinned CA and negotiates TLS 1.2 AES-GCM, Caddy terminates HTTPS, FastAPI stores readings/events and runs YAMNet, and the Android app shows live state, history, acknowledgement, and local cry notifications. The classifier has a reproducible held-out evaluation, and the firmware upload, outage queue, and Android build have direct evidence.
 
-The capture-to-notification path is verified with ten real onboard-microphone trials and ten local Android notifications, and FCM delivery is verified with ten additional backend events. The Android app, classifier evaluation, TLS transport, queue recovery, and documentation are in the repository. Optional hardware UI and longer soak testing remain. The prototype is educational and is not a medical or safety-certified monitor.
+The capture-to-notification path is verified with ten real onboard-microphone trials and ten local Android notifications, and FCM delivery is verified with ten additional backend events. The Android app, classifier evaluation, TLS transport, queue recovery, and documentation are in the repository. The local display, buttons, buzzer, and audio-reactive LEDs are implemented; longer soak testing and live-motion footage remain optional. The prototype is educational and is not a medical or safety-certified monitor.
