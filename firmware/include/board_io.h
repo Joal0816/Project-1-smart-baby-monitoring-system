@@ -3,6 +3,7 @@
 
 #include "stm32f4xx_hal.h"
 
+#include <stdbool.h>
 #include <stddef.h>
 #include <stdint.h>
 
@@ -17,6 +18,7 @@
 
 void board_io_init(void);
 void board_led_toggle(void);
+void board_led_blue_set(bool on);
 int board_uart_write(const char *data, size_t length);
 
 #endif

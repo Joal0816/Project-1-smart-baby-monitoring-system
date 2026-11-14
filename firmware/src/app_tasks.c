@@ -3,6 +3,7 @@
 #include "alert_logic.h"
 #include "audio_capture.h"
 #include "board_io.h"
+#include "monitor_ui.h"
 #include "queue.h"
 #include "sensors.h"
 #include "wifi_net.h"
@@ -18,6 +19,8 @@ typedef struct {
 
 static QueueHandle_t sensor_queue;
 static TaskHandle_t task_handles[5];
+static volatile SensorSnapshot latest_snapshot;
+static volatile bool latest_snapshot_valid;
 volatile MonitorDiagnostics g_monitor_diagnostics;
 
 enum { TASK_SENSOR = 0, TASK_AUDIO, TASK_NETWORK, TASK_LOCAL_UI, TASK_HEALTH };
@@ -75,6 +78,10 @@ static void SensorTask(void *argument)
             .sensor_data_available = all_valid ? 1U : 0U,
         };
         (void)xQueueOverwrite(sensor_queue, &heartbeat);
+        taskENTER_CRITICAL();
+        latest_snapshot = snapshot;
+        latest_snapshot_valid = true;
+        taskEXIT_CRITICAL();
         g_monitor_diagnostics.sensor_heartbeats++;
         g_monitor_diagnostics.hardware_unverified = all_valid ? 0U : 1U;
         vTaskDelayUntil(&wake_time, pdMS_TO_TICKS(1000U));
@@ -102,12 +109,24 @@ static void NetworkTask(void *argument)
 static void LocalUiTask(void *argument)
 {
     (void)argument;
+    monitor_ui_init();
     TickType_t wake_time = xTaskGetTickCount();
+    uint32_t last_led = 0U;
     for (;;) {
         record_wake_delay(TASK_LOCAL_UI, wake_time);
-        /* PF12 is the verified onboard red LED; display, buzzer, and buttons stay inactive. */
-        board_led_toggle();
-        vTaskDelayUntil(&wake_time, pdMS_TO_TICKS(500U));
+        SensorSnapshot snapshot = {0};
+        taskENTER_CRITICAL();
+        if (latest_snapshot_valid) {
+            snapshot = latest_snapshot;
+        }
+        taskEXIT_CRITICAL();
+        monitor_ui_step(&snapshot);
+        const uint32_t now = HAL_GetTick();
+        if ((now - last_led) >= 500U) {
+            last_led = now;
+            board_led_toggle();
+        }
+        vTaskDelayUntil(&wake_time, pdMS_TO_TICKS(50U));
     }
 }
 
@@ -152,7 +171,7 @@ void monitor_tasks_start(void)
                              &task_handles[TASK_AUDIO]) == pdPASS);
     configASSERT(xTaskCreate(NetworkTask, "Network", 2048U, NULL, 2U,
                              &task_handles[TASK_NETWORK]) == pdPASS);
-    configASSERT(xTaskCreate(LocalUiTask, "LocalUI", 256U, NULL, 3U,
+    configASSERT(xTaskCreate(LocalUiTask, "LocalUI", 512U, NULL, 3U,
                              &task_handles[TASK_LOCAL_UI]) == pdPASS);
     configASSERT(xTaskCreate(HealthTask, "Health", 256U, NULL, 1U,
                              &task_handles[TASK_HEALTH]) == pdPASS);

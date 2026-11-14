@@ -457,6 +457,8 @@ static uint32_t audio_remaining;
 static uint32_t audio_offset;
 static uint32_t audio_sequence;
 static bool last_audio_upload;
+static volatile bool cry_alert;
+static uint8_t http_chunk[512];
 static int http_status;
 static void audio_pump(struct altcp_pcb *pcb);
 
@@ -494,16 +496,18 @@ static err_t http_recv(void *arg, struct altcp_pcb *pcb, struct pbuf *p, err_t e
     uint8_t header[192];
     uint16_t hn = pbuf_copy_partial(p, header, sizeof(header), 0);
     update_time_from_headers(header, hn);
-    uint8_t chunk[128];
-    uint16_t n = pbuf_copy_partial(p, chunk, sizeof(chunk) - 1, 0);
-    chunk[n] = 0;
-    if (http_status == 0 && strstr((char *)chunk, "HTTP/1.") != NULL) {
-        const char *space = strchr((char *)chunk, ' ');
+    uint16_t n = pbuf_copy_partial(p, http_chunk, sizeof(http_chunk) - 1, 0);
+    http_chunk[n] = 0;
+    if (http_status == 200 && audio_mode && strstr((char *)http_chunk, "\"confirmed\":true") != NULL) {
+        cry_alert = true;
+    }
+    if (http_status == 0 && strstr((char *)http_chunk, "HTTP/1.") != NULL) {
+        const char *space = strchr((char *)http_chunk, ' ');
         if (space != NULL) {
             http_status = atoi(space + 1);
         }
     }
-    printf("wifi: http %s", (char *)chunk);
+    printf("wifi: http %s", (char *)http_chunk);
     http_rx_len += p->tot_len;
     pbuf_free(p);
     return ERR_OK;
@@ -769,6 +773,28 @@ static void wifi_poll(void)
             }
         }
     }
+}
+
+bool wifi_net_connected(void)
+{
+    return wifi_joined && wifi_connect_seen;
+}
+
+const char *wifi_net_ip(void)
+{
+    static char address[16];
+    snprintf(address, sizeof(address), "%s", ip4addr_ntoa(&wifi_netif.ip_addr));
+    return address;
+}
+
+bool wifi_net_cry_alert(void)
+{
+    return cry_alert;
+}
+
+void wifi_net_clear_cry_alert(void)
+{
+    cry_alert = false;
 }
 
 void wifi_net_publish_sensors(const SensorSnapshot *snapshot)

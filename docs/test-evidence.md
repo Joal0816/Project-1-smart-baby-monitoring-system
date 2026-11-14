@@ -17,14 +17,18 @@ All results below were run on the project workstation on 2026-11-13 (Asia/Singap
 
 ```text
 PLATFORMIO_CORE_DIR=.pio-core pio run -e rtspark_f407zg_hsi
-RAM:   56.0% (73,388 / 131,072 bytes)
+RAM:   56.5% (74,100 / 131,072 bytes)
 Flash: 13.3% (139,356 / 1,048,576 bytes)
 
 PLATFORMIO_CORE_DIR=.pio-core pio run -e rtspark_f407zg_hsi -t upload
 SUCCESS
 ```
 
-Runtime health observed during the final smoke test: `heap_min=9448`, `stacks=96/234/142/229/113`, telemetry `HTTP/1.1 200 OK`, queue `q=1..2`, `dropped=0`.
+Runtime health observed after the local-UI build: `heap_min=8424`, `stacks=92/234/142/354/113`, display `ST7789 240x240 ready`, telemetry `HTTP/1.1 200 OK`, queue drain active.
+
+## Local hardware UI
+
+The LocalUI task now initializes the onboard ST7789 (FSMC bank 3), three 240×240 status pages, KEY0–KEY2/WK_UP, the blue alert LED, and the PB0 buzzer. Serial evidence after flashing: `display: ST7789 240x240 ready` and `ui: display=ready; buttons and buzzer active`. Heap minimum is 8,424 B; stack high-water is 92/234/142/354/113 words. Physical pixel, button, and audible-buzzer confirmation remains a human check. Pin map and behavior: `docs/local-ui.md`.
 
 ## FreeRTOS wake-delay measurement (2026-11-14)
 

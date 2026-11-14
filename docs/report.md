@@ -30,8 +30,9 @@ The onboard RW007 transport joins a 2.4 GHz AP, obtains DHCP, and posts real sen
 | ICM20608 accelerometer/gyro | Same I²C2 bus, address 0x68, `WHO_AM_I=0xAF` |
 | ES8388 + 3.5 mm microphone | Codec at 0x10; I2S3 master, I2S3ext RX, DMA1 |
 | RW007 Wi-Fi | SPI link, Wi-Fi join, DHCP, pinned-CA TLS 1.2 AES-GCM, real sensor telemetry, 64 KB audio-window POST, bounded outage queue, ten microphone-to-app trials, and ten FCM delivery trials verified; emulator and photo-based physical demo videos recorded |
-| ST7789 LCD, buttons, buzzer | Pins/control not yet implemented |
+| ST7789 LCD, buttons, buzzer | FSMC ST7789 initialized; three status pages; KEY0–KEY2/WK_UP; PB0 buzzer; physical confirmation pending |
 | Android phone/emulator | API 35 emulator; APK connected to local backend; FCM push verified 10/10 |
+| Local UI | ST7789 240×240, buttons, blue alert LED, buzzer |
 
 ## 4. Firmware design
 
@@ -45,7 +46,7 @@ Five FreeRTOS tasks are created:
 | Local UI | 3 | 256 | PF12 blink |
 | Health | 1 | 256 | 1 Hz heap/stack/health logging |
 
-Latest measured build: 73,388 B of 131,072 B main SRAM (plus the 64 KiB CCM audio window); 139,612 B of 1,048,576 B flash. Runtime health logs show 9,448 B minimum free of 24,576 B FreeRTOS heap and stack high-water 96/234/142/229/113 words (Sensors/Audio/Network/LocalUI/Health). Tick is 1 kHz. The sensor bus uses a FreeRTOS mutex shared with the codec. A two-minute wake-delay run measured 0/3/0/0/482 ms for Sensors/Audio/Network/LocalUI/Health; the lowest-priority health task is delayed by USB logging and network activity.
+Latest measured UI build: 74,100 B of 131,072 B main SRAM (plus the 64 KiB CCM audio window); 144,884 B of 1,048,576 B flash. Runtime health logs after the UI build show 8,424 B minimum free of 24,576 B FreeRTOS heap and stack high-water 92/234/142/354/113 words (Sensors/Audio/Network/LocalUI/Health). Tick is 1 kHz. The sensor bus uses a FreeRTOS mutex shared with the codec. A two-minute wake-delay run before the UI change measured 0/3/0/0/482 ms; the UI build measured LocalUI wake delay 2 ms. The lowest-priority health task is delayed by USB logging and network activity.
 
 ### Audio
 
