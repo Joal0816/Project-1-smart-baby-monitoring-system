@@ -30,6 +30,24 @@ Runtime health observed after the local-UI build: `heap_min=8424`, `stacks=92/23
 
 The LocalUI task now initializes the onboard ST7789 (FSMC bank 3), three 240×240 status pages, KEY0–KEY2/WK_UP, the blue alert LED, and the PB0 buzzer. Serial evidence after flashing: `display: ST7789 240x240 ready` and `ui: display=ready; buttons and buzzer active`. Heap minimum is 8,424 B; stack high-water is 92/234/142/354/113 words. Human check: display rendered the status and `BUZZER MUTED` states; the WK_UP test beep was audible. The AudioTask logs `freq=...` and the red/blue LED meter responds to level/frequency; a 1 kHz laptop tone produced a coarse 625–1562 Hz estimate. Pin map and behavior: `docs/local-ui.md`.
 
+## Ten-minute soak (2026-11-14)
+
+A 600 s serial capture of the final UI/audio firmware contained 595 health samples (heartbeat 19–618), no reboot banner, and no HTTP non-200 responses:
+
+| Metric | Result |
+|---|---:|
+| Heap minimum | 8,424 B of 24,576 B |
+| Stack high-water (Sensors/Audio/Network/LocalUI/Health) | 96/230/132/342/113 words |
+| Max wake delay | 0/9/0/4/507 ms |
+| HTTP 200 responses | 264 |
+| Audio windows accepted | 82 |
+| Audio DMA errors | 0 |
+| Telemetry queue depth maximum | 7 of 8 |
+| Telemetry dropped counter | 15 |
+| Boot banners during capture | 0 |
+
+The 15 dropped telemetry entries occurred while the queue was full during sustained network/audio activity; the backend still returned 200 for every completed request. Raw capture: `.dev-tools/downloads/soak-final-600s.log` (ignored generated evidence).
+
 ## FreeRTOS wake-delay measurement (2026-11-14)
 
 The firmware now records, per periodic task, the delay from its intended wake tick to its first instruction. A 120 s capture after reflashing contained 120 health lines (124 sensor heartbeats):

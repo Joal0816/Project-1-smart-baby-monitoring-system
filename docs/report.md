@@ -46,7 +46,7 @@ Five FreeRTOS tasks are created:
 | Local UI | 3 | 256 | PF12 blink |
 | Health | 1 | 256 | 1 Hz heap/stack/health logging |
 
-Latest measured UI build: 74,100 B of 131,072 B main SRAM (plus the 64 KiB CCM audio window); 144,884 B of 1,048,576 B flash. Runtime health logs after the UI build show 8,424 B minimum free of 24,576 B FreeRTOS heap and stack high-water 92/234/142/354/113 words (Sensors/Audio/Network/LocalUI/Health). Tick is 1 kHz. The sensor bus uses a FreeRTOS mutex shared with the codec. A two-minute wake-delay run before the UI change measured 0/3/0/0/482 ms; the UI build measured LocalUI wake delay 2 ms. The lowest-priority health task is delayed by USB logging and network activity.
+Latest measured UI build: 74,108 B of 131,072 B main SRAM (plus the 64 KiB CCM audio window); 145,100 B of 1,048,576 B flash. A 600 s soak collected 595 health samples with 8,424 B minimum free of 24,576 B FreeRTOS heap, stack high-water 96/230/132/342/113 words (Sensors/Audio/Network/LocalUI/Health), 264 HTTP 200 responses, 82 accepted audio windows, 0 audio DMA errors, and 0 reboots. Max wake delay was 0/9/0/4/507 ms; the lowest-priority health task is delayed by USB logging and network activity. Tick is 1 kHz; the sensor bus uses a FreeRTOS mutex shared with the codec.
 
 ### Audio
 
