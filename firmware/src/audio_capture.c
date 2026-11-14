@@ -299,24 +299,32 @@ void audio_capture_poll(void)
         sum_squares += (uint64_t)((int64_t)sample * sample);
     }
     const uint32_t rms = (uint32_t)sqrtf((float)sum_squares / AUDIO_HALF_SAMPLES);
-    uint32_t crossings = 0U;
     uint32_t mono_frames = 0U;
-    int32_t previous = 0;
-    bool have_previous = false;
+    int64_t mono_sum = 0;
     for (size_t frame = 0U; frame + 1U < AUDIO_HALF_SAMPLES; frame += 2U) {
-        const int32_t mono = ((int32_t)samples[frame] + samples[frame + 1U]) / 2;
-        if (have_previous &&
-            ((previous < 0 && mono >= 0) || (previous > 0 && mono <= 0))) {
-            crossings++;
-        }
-        previous = mono;
-        have_previous = true;
+        mono_sum += ((int32_t)samples[frame] + samples[frame + 1U]) / 2;
         mono_frames++;
+    }
+    const int32_t mono_mean = mono_frames > 0U
+        ? (int32_t)(mono_sum / (int64_t)mono_frames)
+        : 0;
+    int32_t threshold = (int32_t)(rms / 3U);
+    if (threshold < 16) threshold = 16;
+    int8_t sign = 0;
+    uint32_t cycles = 0U;
+    for (size_t frame = 0U; frame + 1U < AUDIO_HALF_SAMPLES; frame += 2U) {
+        const int32_t mono = ((int32_t)samples[frame] + samples[frame + 1U]) / 2 - mono_mean;
+        if (mono > threshold) {
+            if (sign < 0) cycles++;
+            sign = 1;
+        } else if (mono < -threshold) {
+            sign = -1;
+        }
     }
     audio_meter_rms = rms;
     audio_meter_peak = peak;
     audio_meter_frequency_hz = mono_frames > 0U
-        ? crossings * AUDIO_SAMPLE_RATE / (2U * mono_frames)
+        ? cycles * AUDIO_SAMPLE_RATE / mono_frames
         : 0U;
     audio_halves++;
     if (rms > audio_max_rms) {

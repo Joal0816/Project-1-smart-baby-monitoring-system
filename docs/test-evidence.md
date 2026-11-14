@@ -114,7 +114,7 @@ The APK built against local JDK 17 and Android SDK. The app was previously exerc
 
 ## Audio diagnostic
 
-The root cause was the ES8388 ADC output tri-state: `ADCCONTROL3=0x02` set `TRI=1`, leaving ASDOUT floating. Clearing it to `0x00` and using I2S 16-bit format (`ADCCONTROL4=0x0C`) produced real onboard-microphone windows. Ten current-firmware capture-to-notification trials are recorded below; earlier events `b9075663-d35d-43e3-846c-ec6440652fed` (0.91179) and `f6d0f8ad-b729-4a70-9016-8a2d54e5b5cb` (0.95311) were separate exploratory captures.
+The root cause was the ES8388 ADC output tri-state: `ADCCONTROL3=0x02` set `TRI=1`, leaving ASDOUT floating. Clearing it to `0x00` and using I2S 16-bit format (`ADCCONTROL4=0x0C`) produced real onboard-microphone windows. Ten current-firmware capture-to-notification trials are recorded below; earlier events `b9075663-d35d-43e3-846c-ec6440652fed` (0.91179) and `f6d0f8ad-b729-4a70-9016-8a2d54e5b5cb` (0.95311) were separate exploratory captures. The UI meter now uses ADC gain `0x22` to avoid saturation; the ten classifier trials below were collected at `0xBB`. The classifier evidence is unchanged, but the gain difference is recorded rather than hidden.
 
 ## Ten real microphone-to-app trials (2026-11-14)
 

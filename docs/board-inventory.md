@@ -19,8 +19,8 @@ An RT-Spark STM32F407 board is available and connected. The official Spark-1 BSP
 | Signal | Peripheral | MCU pin | Board connector | Verified |
 |---|---|---|---|---|
 | UART log | USART1 | PA9 (TX), PA10 (RX) | ST-Link VCP, COM7 | Yes (115200 8N1) |
-| Red LED | GPIO | PF12 | Onboard RGB LED | Yes (user observed 1 Hz blink) |
-| Blue LED | GPIO | PF11 | Onboard RGB LED | Pin documented; not exercised |
+| Red LED | GPIO | PF12 | Onboard RGB LED | Yes (boot self-test and audio meter) |
+| Blue LED | GPIO | PF11 | Onboard RGB LED | Yes (boot self-test and alert/audio meter) |
 | I²C sensor bus | Soft I²C3 | SCL PE0, SDA PE1 | AHT10/AHT21 at `0x38` | Yes |
 | I²C sensor bus | Soft I²C2 | SCL PF1, SDA PF0 | AP3216C `0x1E`, ICM20608 `0x68`, ES8388 `0x10` | Yes |
 | AP3216C interrupt | GPIO | PG13 | Onboard AP3216C | Pin documented; polling used |

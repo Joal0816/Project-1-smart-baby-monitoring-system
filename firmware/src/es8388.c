@@ -63,7 +63,7 @@ static bool write_sequence(SoftI2C *bus)
         {ES8388_DACCONTROL4, 0x00U},
         {ES8388_DACPOWER, 0x3CU},
         {ES8388_ADCPOWER, 0xFFU},
-        {ES8388_ADCCONTROL1, 0xBBU},
+        {ES8388_ADCCONTROL1, 0x22U},
         {ES8388_ADCCONTROL2, 0x00U},
         {ES8388_ADCCONTROL3, 0x00U},
         {ES8388_ADCCONTROL4, 0x0CU},

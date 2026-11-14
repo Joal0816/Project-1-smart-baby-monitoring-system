@@ -35,6 +35,11 @@ static uint32_t last_render;
 static uint32_t beep_until;
 static bool last_alert;
 static uint8_t last_page;
+static uint32_t last_meter_log;
+static uint32_t led_test_until;
+static uint32_t led_hold_until;
+static bool held_red;
+static bool held_blue;
 
 static void button_init(Button *button, GPIO_TypeDef *port, uint16_t pin)
 {
@@ -112,6 +117,9 @@ void monitor_ui_step(const SensorSnapshot *snapshot)
 {
     if (!initialized || snapshot == NULL) return;
     const uint32_t now = HAL_GetTick();
+    if (led_test_until == 1U) {
+        led_test_until = now + 1500U;
+    }
 
     for (uint8_t i = 0; i < 4U; ++i) {
         read_button(&buttons[i], now, i);
@@ -122,19 +130,34 @@ void monitor_ui_step(const SensorSnapshot *snapshot)
     uint32_t audio_peak = 0U;
     uint32_t audio_frequency_hz = 0U;
     audio_capture_meter(&audio_rms, &audio_peak, &audio_frequency_hz);
-    const bool audio_active = audio_rms >= 80U && audio_peak >= 150U;
+    const bool audio_active = audio_rms >= 25U && audio_peak >= 80U;
     bool red = false;
     bool blue = false;
-    if (alert) {
+    if (led_test_until != 0U && (int32_t)(now - led_test_until) < 0) {
+        red = true;
+        blue = true;
+    } else if (alert) {
         const bool blink = ((now / 250U) & 1U) != 0U;
         red = blink;
         blue = blink;
     } else if (audio_active) {
-        red = audio_frequency_hz < 2000U;
-        blue = audio_frequency_hz >= 500U;
+        red = audio_frequency_hz < 1200U;
+        blue = audio_frequency_hz >= 800U;
+        held_red = red;
+        held_blue = blue;
+        led_hold_until = now + 300U;
+    } else if (led_hold_until != 0U && (int32_t)(now - led_hold_until) < 0) {
+        red = held_red;
+        blue = held_blue;
     }
     board_led_red_set(red);
     board_led_blue_set(blue);
+    if ((now - last_meter_log) >= 500U) {
+        last_meter_log = now;
+        printf("ui: meter rms=%lu peak=%lu freq=%lu red=%u blue=%u\r\n",
+               (unsigned long)audio_rms, (unsigned long)audio_peak,
+               (unsigned long)audio_frequency_hz, red ? 1U : 0U, blue ? 1U : 0U);
+    }
     if (alert && !muted) {
         const bool on = ((now / 500U) & 1U) != 0U;
         HAL_GPIO_WritePin(BUZZER_PORT, BUZZER_PIN, on ? GPIO_PIN_SET : GPIO_PIN_RESET);
