@@ -92,4 +92,4 @@ The ten current-firmware trials are true microphone → Wi-Fi → backend → lo
 
 ## 4. Video and tagged release
 
-The demonstration video must show the physical board, the app, notification/history/controls, and a Wi-Fi failure/recovery. The network path and outage recovery are working; record the video with a classroom fixture and licensed prerecorded cry audio once the acoustic source is available. No release tag or push has been made without an explicit release instruction.
+The demonstration video must show the physical board, the app, notification/history/controls, and a Wi-Fi failure/recovery. The network path and outage recovery are working; record the physical video with a classroom fixture and licensed prerecorded cry audio when a camera is available. Emulator demo: `docs/little-monitor-demo.mp4`. Tag `v1.0.0-bca182` is local; no push has been made.

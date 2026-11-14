@@ -85,7 +85,7 @@ Latest measured build: 73,364 B of 131,072 B main SRAM (plus the 64 KiB CCM audi
 1. Display/buttons/buzzer and local acknowledge/mute.
 2. Speech/music/silence confusers and a larger independent test set.
 3. Longer FreeRTOS heap/stack/timing soak and worst-case latency measurement.
-4. Physical-fixture demonstration video and final release tag. The repository includes an emulator screen recording as a reproducible demonstration aid; it is not a substitute for showing the physical fixture.
+4. Physical-fixture demonstration video. Release tag `v1.0.0-bca182` is created; the repository includes an emulator screen recording as a reproducible demonstration aid, not a substitute for showing the physical fixture.
 
 ## 9. Conclusion
 
