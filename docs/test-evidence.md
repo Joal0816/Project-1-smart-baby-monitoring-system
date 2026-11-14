@@ -28,7 +28,7 @@ Runtime health observed after the local-UI build: `heap_min=8424`, `stacks=92/23
 
 ## Local hardware UI
 
-The LocalUI task now initializes the onboard ST7789 (FSMC bank 3), three 240×240 status pages, KEY0–KEY2/WK_UP, the blue alert LED, and the PB0 buzzer. Serial evidence after flashing: `display: ST7789 240x240 ready` and `ui: display=ready; buttons and buzzer active`. Heap minimum is 8,424 B; stack high-water is 92/234/142/354/113 words. Physical pixel, button, and audible-buzzer confirmation remains a human check. Pin map and behavior: `docs/local-ui.md`.
+The LocalUI task now initializes the onboard ST7789 (FSMC bank 3), three 240×240 status pages, KEY0–KEY2/WK_UP, the blue alert LED, and the PB0 buzzer. Serial evidence after flashing: `display: ST7789 240x240 ready` and `ui: display=ready; buttons and buzzer active`. Heap minimum is 8,424 B; stack high-water is 92/234/142/354/113 words. Human check: display rendered the status and `BUZZER MUTED` states; the WK_UP test beep was audible. Pin map and behavior: `docs/local-ui.md`.
 
 ## FreeRTOS wake-delay measurement (2026-11-14)
 

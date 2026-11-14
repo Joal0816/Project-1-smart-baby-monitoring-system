@@ -44,4 +44,4 @@ The alert is local-only. It does not acknowledge the backend event; the app rema
 - Build: RAM `74,100 B`, flash `144,884 B` (UI build).
 - Serial boot: `display: ST7789 240x240 ready`; `ui: display=ready; buttons and buzzer active`.
 - FreeRTOS after UI: heap minimum `8,424 B`; stack high-water `92/234/142/354/113` words; LocalUI wake delay `2 ms` in the sampled run.
-- Display pixels, physical button presses, and audible buzzer output require the person at the fixture to confirm; no emulator substitutes for those checks.
+- Human check at the fixture: the display rendered the status page and changed to `BUZZER MUTED` after the mute control; the WK_UP test produced an audible beep. Physical page and mute behavior confirmed on 2026-11-14.
