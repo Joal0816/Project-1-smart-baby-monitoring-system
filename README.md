@@ -90,7 +90,7 @@ The debug APK is written to `android/app/build/outputs/apk/debug/app-debug.apk`.
 
 For a local emulator against the workstation backend, the **debug** build also permits `http://10.0.2.2:8000`; release builds remain HTTPS-only. Use the app token and device ID configured on the backend.
 
-While the onboard Wi-Fi transport is unfinished, a bench bridge can feed live serial sensor readings into the backend:
+For bench diagnostics, a serial bridge can feed sensor readings into the backend without the onboard Wi-Fi path:
 
 ```powershell
 $env:MONITOR_DEVICE_TOKEN = "dev-device-token"   # use your local token; do not commit it
