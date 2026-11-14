@@ -46,7 +46,7 @@ Then report min/median/p95/max and every failed delivery. Keep the raw serial lo
 
 ## Current evidence
 
-Ten real onboard-microphone capture-to-notification trials are complete: 10/10 local Android notifications, median 6.27 s, max 15.82 s. Reuse the ten-trial table above for the final recording; The FCM path is verified separately; the physical video remains outstanding.
+Ten real onboard-microphone capture-to-notification trials are complete: 10/10 local Android notifications, median 6.27 s, max 15.82 s. Reuse the ten-trial table above for the final recording. The FCM path is verified separately; the physical-fixture video remains outstanding.
 
 ## Recorded demonstration file
 

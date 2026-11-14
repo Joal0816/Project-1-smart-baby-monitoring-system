@@ -106,4 +106,4 @@ With the local Firebase project (`little-monitor`), `google-services.json`, and 
 ## Not yet evidenced
 
 - Display, buttons, buzzer, and local acknowledge/mute.
-- Longer FreeRTOS latency/soak testing and a fully tagged submission.
+- Longer FreeRTOS latency/soak testing and worst-case task latency.
