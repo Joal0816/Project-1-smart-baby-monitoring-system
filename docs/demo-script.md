@@ -46,8 +46,9 @@ Then report min/median/p95/max and every failed delivery. Keep the raw serial lo
 
 ## Current evidence
 
-Ten real onboard-microphone capture-to-notification trials are complete: 10/10 local Android notifications, median 6.27 s, max 15.82 s. Reuse the ten-trial table above for the final recording. The FCM path is verified separately; the physical-fixture video remains outstanding.
+Ten real onboard-microphone capture-to-notification trials are complete: 10/10 local Android notifications, median 6.27 s, max 15.82 s. Reuse the ten-trial table above for the final recording. The FCM path is verified separately. A photo-based physical cut is recorded; live-motion fixture footage remains optional.
 
-## Recorded demonstration file
+## Recorded demonstration files
 
-`docs/little-monitor-demo.mp4` is a 66 s narrated screen recording of the Android app against the live local backend. It shows the dashboard, History with the ten real microphone trials, review acknowledgement, a live cry alert, notification shade, and Settings. The recording uses an API/classifier cry event from a licensed ESC-50 window; it does not replace a video of the physical board fixture. FCM setup is documented in `fcm-setup.md`.
+- `docs/little-monitor-demo.mp4`: 66 s narrated emulator screen recording. It shows the dashboard, History with the ten real microphone trials, review acknowledgement, a live cry alert, notification shade, and Settings.
+- `docs/little-monitor-physical-demo.mp4`: 66 s narrated cut using the supplied real RT-Spark board photographs (two angles) followed by the app recording. The board section is a photo sequence, not live board motion. FCM setup is documented in `fcm-setup.md`.

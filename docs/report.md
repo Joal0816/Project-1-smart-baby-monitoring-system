@@ -29,7 +29,7 @@ The onboard RW007 transport joins a 2.4 GHz AP, obtains DHCP, and posts real sen
 | AP3216C light/proximity | Soft I²C2, PF0/PF1, address 0x1E |
 | ICM20608 accelerometer/gyro | Same I²C2 bus, address 0x68, `WHO_AM_I=0xAF` |
 | ES8388 + 3.5 mm microphone | Codec at 0x10; I2S3 master, I2S3ext RX, DMA1 |
-| RW007 Wi-Fi | SPI link, Wi-Fi join, DHCP, pinned-CA TLS 1.2 AES-GCM, real sensor telemetry, 64 KB audio-window POST, bounded outage queue, ten microphone-to-app trials, and ten FCM delivery trials verified; emulator demo video recorded |
+| RW007 Wi-Fi | SPI link, Wi-Fi join, DHCP, pinned-CA TLS 1.2 AES-GCM, real sensor telemetry, 64 KB audio-window POST, bounded outage queue, ten microphone-to-app trials, and ten FCM delivery trials verified; emulator and photo-based physical demo videos recorded |
 | ST7789 LCD, buttons, buzzer | Pins/control not yet implemented |
 | Android phone/emulator | API 35 emulator; APK connected to local backend; FCM push verified 10/10 |
 
@@ -85,7 +85,7 @@ Latest measured build: 73,388 B of 131,072 B main SRAM (plus the 64 KiB CCM audi
 1. Display/buttons/buzzer and local acknowledge/mute.
 2. Speech/music/silence confusers and a larger independent test set.
 3. Longer FreeRTOS heap/stack/timing soak and worst-case latency measurement.
-4. Physical-fixture demonstration video. Release tag `v1.0.0-bca182` is created; the repository includes an emulator screen recording as a reproducible demonstration aid, not a substitute for showing the physical fixture.
+4. Live-motion physical-fixture footage. Release tag `v1.0.0-bca182` is created; the repository includes an emulator recording and a photo-based physical cut (real board photographs plus the app recording).
 
 ## 9. Conclusion
 
