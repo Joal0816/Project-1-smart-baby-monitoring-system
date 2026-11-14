@@ -2,6 +2,7 @@
 #include "audio_capture.h"
 #include "board_io.h"
 #include "display.h"
+#include "led_matrix.h"
 #include "stm32f4xx_hal.h"
 #include "wifi_net.h"
 
@@ -38,8 +39,9 @@ static uint8_t last_page;
 static uint32_t last_meter_log;
 static uint32_t led_test_until;
 static uint32_t led_hold_until;
-static bool held_red;
-static bool held_blue;
+static uint8_t held_red;
+static uint8_t held_green;
+static uint8_t held_blue;
 
 static void button_init(Button *button, GPIO_TypeDef *port, uint16_t pin)
 {
@@ -107,6 +109,7 @@ void monitor_ui_init(void)
     button_init(&buttons[2], KEY2_PORT, KEY2_PIN);
     button_init(&buttons[3], WKUP_PORT, WKUP_PIN);
 
+    led_matrix_init();
     const bool display_ok = display_init();
     printf("ui: display=%s; buttons and buzzer active\r\n",
            display_ok ? "ready" : "unavailable");
@@ -131,32 +134,50 @@ void monitor_ui_step(const SensorSnapshot *snapshot)
     uint32_t audio_frequency_hz = 0U;
     audio_capture_meter(&audio_rms, &audio_peak, &audio_frequency_hz);
     const bool audio_active = audio_rms >= 25U && audio_peak >= 80U;
-    bool red = false;
+    uint8_t matrix_red = 0U;
+    uint8_t matrix_green = 0U;
+    uint8_t matrix_blue = 0U;
     bool blue = false;
     if (led_test_until != 0U && (int32_t)(now - led_test_until) < 0) {
-        red = true;
+        matrix_red = 64U;
+        matrix_green = 64U;
+        matrix_blue = 64U;
         blue = true;
     } else if (alert) {
         const bool blink = ((now / 250U) & 1U) != 0U;
-        red = blink;
+        matrix_red = blink ? 40U : 0U;
+        matrix_blue = blink ? 40U : 0U;
         blue = blink;
     } else if (audio_active) {
-        red = audio_frequency_hz < 1200U;
-        blue = audio_frequency_hz >= 800U;
-        held_red = red;
-        held_blue = blue;
+        const uint32_t brightness = audio_rms > 64U ? 64U : (audio_rms < 8U ? 8U : audio_rms);
+        if (audio_frequency_hz < 800U) {
+            matrix_red = (uint8_t)brightness;
+        } else if (audio_frequency_hz < 1200U) {
+            matrix_red = (uint8_t)brightness;
+            matrix_green = (uint8_t)brightness;
+        } else {
+            matrix_blue = (uint8_t)brightness;
+        }
+        blue = audio_frequency_hz >= 1200U;
+        held_red = matrix_red;
+        held_green = matrix_green;
+        held_blue = matrix_blue;
         led_hold_until = now + 300U;
     } else if (led_hold_until != 0U && (int32_t)(now - led_hold_until) < 0) {
-        red = held_red;
-        blue = held_blue;
+        matrix_red = held_red;
+        matrix_green = held_green;
+        matrix_blue = held_blue;
+    } else {
+        matrix_blue = 10U;
     }
-    board_led_red_set(red);
+    led_matrix_show(matrix_red, matrix_green, matrix_blue);
     board_led_blue_set(blue);
     if ((now - last_meter_log) >= 500U) {
         last_meter_log = now;
-        printf("ui: meter rms=%lu peak=%lu freq=%lu red=%u blue=%u\r\n",
+        printf("ui: meter rms=%lu peak=%lu freq=%lu mat=%u/%u/%u blue=%u\r\n",
                (unsigned long)audio_rms, (unsigned long)audio_peak,
-               (unsigned long)audio_frequency_hz, red ? 1U : 0U, blue ? 1U : 0U);
+               (unsigned long)audio_frequency_hz, matrix_red, matrix_green,
+               matrix_blue, blue ? 1U : 0U);
     }
     if (alert && !muted) {
         const bool on = ((now / 500U) & 1U) != 0U;

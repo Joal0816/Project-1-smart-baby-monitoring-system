@@ -24,7 +24,7 @@ The onboard RW007 transport joins a 2.4 GHz AP, obtains DHCP, and posts real sen
 |---|---|
 | STM32F407ZGTx, 1 MiB flash | 168 MHz from 8 MHz HSE/PLL; SWD flash/debug |
 | USART1 PA9/PA10 | 115200 console through the ST-Link VCP |
-| PF12 / PF11 LEDs | PF12 red LED 1 Hz task indicator |
+| 19-LED matrix / PF11 LED | PF2 enable + PA7 data; audio-reactive colours; PF11 alert |
 | AHT21 temperature/humidity | Soft I²C3, PE0/PE1, address 0x38 |
 | AP3216C light/proximity | Soft I²C2, PF0/PF1, address 0x1E |
 | ICM20608 accelerometer/gyro | Same I²C2 bus, address 0x68, `WHO_AM_I=0xAF` |
@@ -43,10 +43,10 @@ Five FreeRTOS tasks are created:
 | Sensors | 4 | 256 | Initializes and reads AHT21/AP3216C/ICM20608 every second |
 | Audio | 5 | 384 | ES8388 + I2S3ext DMA, RMS/peak logging, 2 s activity-gated mono window |
 | Network | 2 | 2048 | RW007 + lwIP DHCP/TCP; authenticated telemetry POST verified |
-| Local UI | 3 | 256 | PF12 blink |
+| Local UI | 3 | 256 | LCD pages, matrix colours, keys, buzzer |
 | Health | 1 | 256 | 1 Hz heap/stack/health logging |
 
-Latest measured UI build: 74,108 B of 131,072 B main SRAM (plus the 64 KiB CCM audio window); 145,100 B of 1,048,576 B flash. A 600 s soak collected 595 health samples with 8,424 B minimum free of 24,576 B FreeRTOS heap, stack high-water 96/230/132/342/113 words (Sensors/Audio/Network/LocalUI/Health), 264 HTTP 200 responses, 82 accepted audio windows, 0 audio DMA errors, and 0 reboots. Max wake delay was 0/9/0/4/507 ms; the lowest-priority health task is delayed by USB logging and network activity. Tick is 1 kHz; the sensor bus uses a FreeRTOS mutex shared with the codec.
+Latest measured UI build: 74,124 B of 131,072 B main SRAM (plus the 64 KiB CCM audio window); 146,232 B of 1,048,576 B flash. A 600 s soak collected 595 health samples with 8,424 B minimum free of 24,576 B FreeRTOS heap, stack high-water 96/230/132/342/113 words (Sensors/Audio/Network/LocalUI/Health), 264 HTTP 200 responses, 82 accepted audio windows, 0 audio DMA errors, and 0 reboots. Max wake delay was 0/9/0/4/507 ms; the lowest-priority health task is delayed by USB logging and network activity. Tick is 1 kHz; the sensor bus uses a FreeRTOS mutex shared with the codec.
 
 ### Audio
 
