@@ -47,3 +47,7 @@ Then report min/median/p95/max and every failed delivery. Keep the raw serial lo
 ## Current evidence
 
 Ten real onboard-microphone capture-to-notification trials are complete: 10/10 local Android notifications, median 6.27 s, max 15.82 s. Reuse the ten-trial table above for the final recording; The FCM path is verified separately; the physical video remains outstanding.
+
+## Recorded demonstration file
+
+`docs/little-monitor-demo.mp4` is a 66 s narrated screen recording of the Android app against the live local backend. It shows the dashboard, History with the ten real microphone trials, review acknowledgement, a live cry alert, notification shade, and Settings. The recording uses an API/classifier cry event from a licensed ESC-50 window; it does not replace a video of the physical board fixture. FCM setup is documented in `fcm-setup.md`.
