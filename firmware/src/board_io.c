@@ -53,6 +53,12 @@ void board_led_blue_set(bool on)
                       on ? GPIO_PIN_RESET : GPIO_PIN_SET);
 }
 
+void board_led_red_set(bool on)
+{
+    HAL_GPIO_WritePin(BOARD_LED_RED_PORT, BOARD_LED_RED_PIN,
+                      on ? GPIO_PIN_RESET : GPIO_PIN_SET);
+}
+
 int board_uart_write(const char *data, size_t length)
 {
     if (data == NULL || length == 0U) {

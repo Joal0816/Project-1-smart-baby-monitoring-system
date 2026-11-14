@@ -36,6 +36,9 @@ static volatile uint32_t audio_half_period_cycles;
 static uint32_t audio_halves;
 static uint32_t audio_max_rms;
 static uint32_t audio_max_peak;
+static volatile uint32_t audio_meter_rms;
+static volatile uint32_t audio_meter_peak;
+static volatile uint32_t audio_meter_frequency_hz;
 static TickType_t audio_last_log;
 
 static void i2s3_gpio_init(void)
@@ -261,6 +264,13 @@ void audio_capture_window_release(void)
     audio_window_ready = false;
 }
 
+void audio_capture_meter(uint32_t *rms, uint32_t *peak, uint32_t *frequency_hz)
+{
+    if (rms != NULL) *rms = audio_meter_rms;
+    if (peak != NULL) *peak = audio_meter_peak;
+    if (frequency_hz != NULL) *frequency_hz = audio_meter_frequency_hz;
+}
+
 void audio_capture_poll(void)
 {
     const uint32_t half = audio_half_ready;
@@ -289,6 +299,25 @@ void audio_capture_poll(void)
         sum_squares += (uint64_t)((int64_t)sample * sample);
     }
     const uint32_t rms = (uint32_t)sqrtf((float)sum_squares / AUDIO_HALF_SAMPLES);
+    uint32_t crossings = 0U;
+    uint32_t mono_frames = 0U;
+    int32_t previous = 0;
+    bool have_previous = false;
+    for (size_t frame = 0U; frame + 1U < AUDIO_HALF_SAMPLES; frame += 2U) {
+        const int32_t mono = ((int32_t)samples[frame] + samples[frame + 1U]) / 2;
+        if (have_previous &&
+            ((previous < 0 && mono >= 0) || (previous > 0 && mono <= 0))) {
+            crossings++;
+        }
+        previous = mono;
+        have_previous = true;
+        mono_frames++;
+    }
+    audio_meter_rms = rms;
+    audio_meter_peak = peak;
+    audio_meter_frequency_hz = mono_frames > 0U
+        ? crossings * AUDIO_SAMPLE_RATE / (2U * mono_frames)
+        : 0U;
     audio_halves++;
     if (rms > audio_max_rms) {
         audio_max_rms = rms;
@@ -334,9 +363,10 @@ void audio_capture_poll(void)
     if ((now - audio_last_log) >= pdMS_TO_TICKS(1000U)) {
         const uint32_t half_us = (uint32_t)((uint64_t)audio_half_period_cycles *
                                             1000000U / SystemCoreClock);
-        printf("audio: halves=%lu half_us=%lu rms=%lu peak=%lu max_rms=%lu max_peak=%lu errors=%lu\r\n",
+        printf("audio: halves=%lu half_us=%lu rms=%lu peak=%lu freq=%lu max_rms=%lu max_peak=%lu errors=%lu\r\n",
                (unsigned long)audio_halves, (unsigned long)half_us,
                (unsigned long)rms, (unsigned long)peak,
+               (unsigned long)audio_meter_frequency_hz,
                (unsigned long)audio_max_rms, (unsigned long)audio_max_peak,
                (unsigned long)audio_errors);
         audio_last_log = now;

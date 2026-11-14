@@ -12,6 +12,7 @@
 bool display_init(void);
 bool display_is_ready(void);
 void display_render(const SensorSnapshot *snapshot, bool wifi_up,
-                    const char *ip, bool cry_alert, bool muted, uint8_t page);
+                    const char *ip, bool cry_alert, bool muted, uint8_t page,
+                    uint32_t audio_rms, uint32_t audio_frequency_hz);
 
 #endif

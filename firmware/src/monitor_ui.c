@@ -1,4 +1,5 @@
 #include "monitor_ui.h"
+#include "audio_capture.h"
 #include "board_io.h"
 #include "display.h"
 #include "stm32f4xx_hal.h"
@@ -117,7 +118,23 @@ void monitor_ui_step(const SensorSnapshot *snapshot)
     }
 
     const bool alert = wifi_net_cry_alert();
-    board_led_blue_set(alert && !muted);
+    uint32_t audio_rms = 0U;
+    uint32_t audio_peak = 0U;
+    uint32_t audio_frequency_hz = 0U;
+    audio_capture_meter(&audio_rms, &audio_peak, &audio_frequency_hz);
+    const bool audio_active = audio_rms >= 80U && audio_peak >= 150U;
+    bool red = false;
+    bool blue = false;
+    if (alert) {
+        const bool blink = ((now / 250U) & 1U) != 0U;
+        red = blink;
+        blue = blink;
+    } else if (audio_active) {
+        red = audio_frequency_hz < 2000U;
+        blue = audio_frequency_hz >= 500U;
+    }
+    board_led_red_set(red);
+    board_led_blue_set(blue);
     if (alert && !muted) {
         const bool on = ((now / 500U) & 1U) != 0U;
         HAL_GPIO_WritePin(BUZZER_PORT, BUZZER_PIN, on ? GPIO_PIN_SET : GPIO_PIN_RESET);
@@ -133,7 +150,7 @@ void monitor_ui_step(const SensorSnapshot *snapshot)
 
     if (alert != last_alert || page != last_page || (now - last_render) >= 1000U) {
         display_render(snapshot, wifi_net_connected(), wifi_net_ip(),
-                       alert, muted, page);
+                       alert, muted, page, audio_rms, audio_frequency_hz);
         last_alert = alert;
         last_page = page;
         last_render = now;

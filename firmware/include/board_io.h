@@ -18,6 +18,7 @@
 
 void board_io_init(void);
 void board_led_toggle(void);
+void board_led_red_set(bool on);
 void board_led_blue_set(bool on);
 int board_uart_write(const char *data, size_t length);
 

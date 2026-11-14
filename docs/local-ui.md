@@ -29,6 +29,7 @@ The LCD is the onboard 240×240 ST7789V3 panel documented by the Spark-1 user ma
 - **KEY2:** cycle pages.
 - **WK_UP:** 100 ms test beep.
 - A confirmed backend audio response (`"confirmed":true`) sets a local cry alert. The blue LED and buzzer activate until KEY0 clears it; KEY1 mutes the buzzer.
+- **Audio-reactive LEDs:** the AudioTask estimates the dominant frequency from zero crossings of the 16 kHz mono half-buffer. RMS `>=80` and peak `>=150` enable the meter. Below 500 Hz the red LED is on; 500–1999 Hz drives red+blue (magenta); 2000 Hz and above drives blue. The LEDs are the verified red PF12 and blue PF11 channels; no green LED pin is exposed by the board documentation.
 
 The alert is local-only. It does not acknowledge the backend event; the app remains the caregiver record. The LCD and buzzer are not safety-certified annunciators.
 
@@ -41,7 +42,8 @@ The alert is local-only. It does not acknowledge the backend event; the app rema
 
 ## Current evidence
 
-- Build: RAM `74,100 B`, flash `144,884 B` (UI build).
+- Build: RAM `74,108 B`, flash `145,100 B` (audio-reactive UI build).
 - Serial boot: `display: ST7789 240x240 ready`; `ui: display=ready; buttons and buzzer active`.
+- Audio log now includes `freq=...`; a 1 kHz laptop tone produced an approximate 625–1562 Hz estimate, confirming the meter path is live and frequency-dependent (zero-crossing estimate is coarse).
 - FreeRTOS after UI: heap minimum `8,424 B`; stack high-water `92/234/142/354/113` words; LocalUI wake delay `2 ms` in the sampled run.
 - Human check at the fixture: the display rendered the status page and changed to `BUZZER MUTED` after the mute control; the WK_UP test produced an audible beep. Physical page and mute behavior confirmed on 2026-11-14.

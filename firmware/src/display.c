@@ -109,7 +109,8 @@ static void format_tenths(char *buffer, size_t size, int32_t value,
 }
 
 static void render_status(const SensorSnapshot *snapshot, bool wifi_up,
-                          const char *ip, bool cry_alert, bool muted)
+                          const char *ip, bool cry_alert, bool muted,
+                          uint32_t audio_rms, uint32_t audio_frequency_hz)
 {
     char line[32];
     char value[20];
@@ -131,8 +132,8 @@ static void render_status(const SensorSnapshot *snapshot, bool wifi_up,
     lcd_line(92, COLOR_WHITE, line);
     snprintf(line, sizeof(line), "WIFI  %s", wifi_up ? ip : "OFFLINE");
     lcd_line(114, wifi_up ? COLOR_GREEN : COLOR_RED, line);
-    lcd_line(136, cry_alert ? COLOR_RED : COLOR_GRAY,
-             cry_alert ? "AUDIO CRY ALERT" : "AUDIO NO ALERT");
+    snprintf(line, sizeof(line), "AUDIO %luHZ", (unsigned long)audio_frequency_hz);
+    lcd_line(136, cry_alert ? COLOR_RED : (audio_rms >= 80U ? COLOR_CYAN : COLOR_GRAY), line);
     lcd_line(158, muted ? COLOR_YELLOW : COLOR_GRAY,
              muted ? "BUZZER MUTED" : "BUZZER ARMED");
     lcd_line(180, COLOR_GRAY, "K0 ACK  K1 MUTE");
@@ -291,7 +292,8 @@ bool display_init(void)
 }
 
 void display_render(const SensorSnapshot *snapshot, bool wifi_up,
-                    const char *ip, bool cry_alert, bool muted, uint8_t page)
+                    const char *ip, bool cry_alert, bool muted, uint8_t page,
+                    uint32_t audio_rms, uint32_t audio_frequency_hz)
 {
     if (!display_ready || snapshot == NULL) return;
     if (page == 1U) {
@@ -299,6 +301,7 @@ void display_render(const SensorSnapshot *snapshot, bool wifi_up,
     } else if (page == 2U) {
         render_controls();
     } else {
-        render_status(snapshot, wifi_up, ip, cry_alert, muted);
+        render_status(snapshot, wifi_up, ip, cry_alert, muted,
+                      audio_rms, audio_frequency_hz);
     }
 }

@@ -11,5 +11,6 @@ bool audio_capture_window_ready(void);
 const int16_t *audio_capture_window_data(void);
 size_t audio_capture_window_length(void);
 void audio_capture_window_release(void);
+void audio_capture_meter(uint32_t *rms, uint32_t *peak, uint32_t *frequency_hz);
 
 #endif

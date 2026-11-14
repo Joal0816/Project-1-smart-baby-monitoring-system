@@ -30,7 +30,7 @@ The onboard RW007 transport joins a 2.4 GHz AP, obtains DHCP, and posts real sen
 | ICM20608 accelerometer/gyro | Same I²C2 bus, address 0x68, `WHO_AM_I=0xAF` |
 | ES8388 + 3.5 mm microphone | Codec at 0x10; I2S3 master, I2S3ext RX, DMA1 |
 | RW007 Wi-Fi | SPI link, Wi-Fi join, DHCP, pinned-CA TLS 1.2 AES-GCM, real sensor telemetry, 64 KB audio-window POST, bounded outage queue, ten microphone-to-app trials, and ten FCM delivery trials verified; emulator and photo-based physical demo videos recorded |
-| ST7789 LCD, buttons, buzzer | FSMC ST7789 initialized; three status pages; KEY0–KEY2/WK_UP; PB0 buzzer; display/mute/beep observed |
+| ST7789 LCD, buttons, buzzer | FSMC ST7789 initialized; three status pages; KEY0–KEY2/WK_UP; PB0 buzzer; red/blue audio meter; display/mute/beep observed |
 | Android phone/emulator | API 35 emulator; APK connected to local backend; FCM push verified 10/10 |
 | Local UI | ST7789 240×240, buttons, blue alert LED, buzzer |
 

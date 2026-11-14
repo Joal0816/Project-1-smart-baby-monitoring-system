@@ -111,7 +111,6 @@ static void LocalUiTask(void *argument)
     (void)argument;
     monitor_ui_init();
     TickType_t wake_time = xTaskGetTickCount();
-    uint32_t last_led = 0U;
     for (;;) {
         record_wake_delay(TASK_LOCAL_UI, wake_time);
         SensorSnapshot snapshot = {0};
@@ -121,11 +120,6 @@ static void LocalUiTask(void *argument)
         }
         taskEXIT_CRITICAL();
         monitor_ui_step(&snapshot);
-        const uint32_t now = HAL_GetTick();
-        if ((now - last_led) >= 500U) {
-            last_led = now;
-            board_led_toggle();
-        }
         vTaskDelayUntil(&wake_time, pdMS_TO_TICKS(50U));
     }
 }
