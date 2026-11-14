@@ -42,4 +42,4 @@ An RT-Spark STM32F407 board is available and connected. The official Spark-1 BSP
 2. **Partial:** ST-Link SWD upload/debug and HSE/PLL 168 MHz verified; memory layout and boot mode still pending.
 3. **Done:** PlatformIO build, ST-Link flash, USART1 serial logging, and PF12 blink verified; the user observed the LED blinking.
 4. **Done:** FreeRTOS runs five tasks; the sensor task reads the three I²C sensors once per second, and heap/stack values are logged. Worst-case latency is not yet measured.
-5. **Partial:** AHT10/AHT21, AP3216C, ICM20608, I2S3/ES8388 capture, 2 s window upload/classification, RW007 Wi-Fi/TLS, and outage queue are verified. Still pending: controlled cry capture, sustained soak, display, buttons, buzzer, storage, and final report/video.
+5. **Partial:** AHT10/AHT21, AP3216C, ICM20608, I2S3/ES8388 capture, 2 s window upload/classification, RW007 Wi-Fi/TLS, and outage queue are verified. Ten real capture-to-notification trials are complete; still pending: sustained soak, display, buttons, buzzer, storage, FCM, and final report/video.
